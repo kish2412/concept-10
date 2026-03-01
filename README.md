@@ -1,6 +1,7 @@
 # Concept 10 FastAPI Backend
 
 For full machine setup (backend + frontend), see [NEW_DEVELOPER_SETUP.md](NEW_DEVELOPER_SETUP.md).
+For MVP deployment (Vercel + Railway), see [DEPLOYMENT_MVP_OPTION1.md](DEPLOYMENT_MVP_OPTION1.md).
 
 Multi-tenant FastAPI boilerplate with:
 

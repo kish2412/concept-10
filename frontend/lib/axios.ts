@@ -9,7 +9,8 @@ export const api = axios.create({
 });
 
 export function useApiClient() {
-  const { getToken, orgId, userId } = useAuth();
+  const { getToken, orgId, userId, isLoaded } = useAuth();
+  const isReady = isLoaded && Boolean(userId) && Boolean(orgId);
 
   useEffect(() => {
     const interceptor = api.interceptors.request.use(async (config) => {
@@ -36,5 +37,5 @@ export function useApiClient() {
     };
   }, [getToken, orgId, userId]);
 
-  return api;
+  return { api, isReady };
 }

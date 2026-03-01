@@ -83,7 +83,7 @@ function formatDate(value: string | null | undefined): string {
 }
 
 export default function PatientsPage() {
-  const api = useApiClient();
+  const { api, isReady } = useApiClient();
   const queryClient = useQueryClient();
 
   const [search, setSearch] = useState("");
@@ -107,10 +107,14 @@ export default function PatientsPage() {
       });
       return response.data;
     },
+    enabled: isReady,
   });
 
   const createPatientMutation = useMutation({
     mutationFn: async (payload: PatientPayload) => {
+      if (!isReady) {
+        throw new Error("Authentication context is not ready");
+      }
       await api.post("/patients", payload);
     },
     onSuccess: async () => {
@@ -123,6 +127,9 @@ export default function PatientsPage() {
 
   const updatePatientMutation = useMutation({
     mutationFn: async ({ id, payload }: { id: string; payload: PatientPayload }) => {
+      if (!isReady) {
+        throw new Error("Authentication context is not ready");
+      }
       await api.put(`/patients/${id}`, payload);
     },
     onSuccess: async () => {

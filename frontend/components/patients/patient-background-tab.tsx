@@ -39,7 +39,7 @@ const initialState = {
 };
 
 export function PatientBackgroundTab({ patientId }: Props) {
-  const api = useApiClient();
+  const { api, isReady } = useApiClient();
   const queryClient = useQueryClient();
   const [formState, setFormState] = useState(initialState);
 
@@ -49,7 +49,7 @@ export function PatientBackgroundTab({ patientId }: Props) {
       const response = await api.get<PatientBackground>(`/patients/${patientId}/background`);
       return response.data;
     },
-    enabled: Boolean(patientId),
+    enabled: Boolean(patientId) && isReady,
   });
 
   useEffect(() => {
@@ -69,6 +69,9 @@ export function PatientBackgroundTab({ patientId }: Props) {
 
   const saveMutation = useMutation({
     mutationFn: async (payload: PatientBackgroundPayload) => {
+      if (!isReady) {
+        throw new Error("Authentication context is not ready");
+      }
       await api.put(`/patients/${patientId}/background`, payload);
     },
     onSuccess: async () => {
