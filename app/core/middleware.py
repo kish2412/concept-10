@@ -1,6 +1,7 @@
 import uuid
 
 from sqlalchemy import select
+from sqlalchemy.exc import IntegrityError
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.requests import Request
 from starlette.responses import JSONResponse
@@ -34,7 +35,28 @@ class TenantJWTMiddleware(BaseHTTPMiddleware):
                     select(Clinic.id).where(Clinic.external_org_id == raw_tenant, Clinic.is_deleted.is_(False))
                 )
                 clinic_id = result.scalar_one_or_none()
-                return str(clinic_id) if clinic_id else None
+                if clinic_id:
+                    return str(clinic_id)
+
+                new_clinic_id = uuid.uuid4()
+                new_clinic = Clinic(
+                    id=new_clinic_id,
+                    clinic_id=new_clinic_id,
+                    name=f"Clinic {raw_tenant}"[:255],
+                    external_org_id=raw_tenant,
+                )
+                session.add(new_clinic)
+
+                try:
+                    await session.commit()
+                    return str(new_clinic_id)
+                except IntegrityError:
+                    await session.rollback()
+                    retry_result = await session.execute(
+                        select(Clinic.id).where(Clinic.external_org_id == raw_tenant, Clinic.is_deleted.is_(False))
+                    )
+                    existing_clinic_id = retry_result.scalar_one_or_none()
+                    return str(existing_clinic_id) if existing_clinic_id else None
         except BaseException:
             return None
 
