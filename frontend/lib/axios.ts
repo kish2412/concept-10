@@ -3,6 +3,7 @@
 import axios from "axios";
 import { useAuth } from "@clerk/nextjs";
 import { useEffect } from "react";
+import { useState } from "react";
 
 export const api = axios.create({
   baseURL: process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:8000/api/v1",
@@ -10,9 +11,12 @@ export const api = axios.create({
 
 export function useApiClient() {
   const { getToken, orgId, userId, isLoaded } = useAuth();
-  const isReady = isLoaded && Boolean(userId) && Boolean(orgId);
+  const [isInterceptorReady, setIsInterceptorReady] = useState(false);
+  const isReady = isLoaded && Boolean(userId) && Boolean(orgId) && isInterceptorReady;
 
   useEffect(() => {
+    setIsInterceptorReady(false);
+
     const interceptor = api.interceptors.request.use(async (config) => {
       const token = await getToken();
 
@@ -32,8 +36,11 @@ export function useApiClient() {
       return config;
     });
 
+    setIsInterceptorReady(true);
+
     return () => {
       api.interceptors.request.eject(interceptor);
+      setIsInterceptorReady(false);
     };
   }, [getToken, orgId, userId]);
 

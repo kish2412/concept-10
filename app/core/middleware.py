@@ -1,3 +1,4 @@
+import logging
 import uuid
 
 from sqlalchemy import select
@@ -7,9 +8,12 @@ from starlette.requests import Request
 from starlette.responses import JSONResponse
 
 from app.core.database import SessionLocal
+from app.core.config import settings
 from app.models.clinic import Clinic
 from app.core.security import decode_token
 from app.core.tenant_context import set_current_tenant
+
+logger = logging.getLogger("app.tenant_auth")
 
 
 class TenantJWTMiddleware(BaseHTTPMiddleware):
@@ -25,6 +29,7 @@ class TenantJWTMiddleware(BaseHTTPMiddleware):
     async def _resolve_tenant_clinic_id(raw_tenant: str) -> str | None:
         try:
             parsed_uuid = uuid.UUID(raw_tenant)
+            logger.debug("Tenant resolved directly as UUID")
             return str(parsed_uuid)
         except ValueError:
             pass
@@ -36,6 +41,7 @@ class TenantJWTMiddleware(BaseHTTPMiddleware):
                 )
                 clinic_id = result.scalar_one_or_none()
                 if clinic_id:
+                    logger.debug("Tenant resolved from clinics.external_org_id")
                     return str(clinic_id)
 
                 new_clinic_id = uuid.uuid4()
@@ -49,6 +55,7 @@ class TenantJWTMiddleware(BaseHTTPMiddleware):
 
                 try:
                     await session.commit()
+                    logger.info("Created clinic mapping for external org id")
                     return str(new_clinic_id)
                 except IntegrityError:
                     await session.rollback()
@@ -56,8 +63,11 @@ class TenantJWTMiddleware(BaseHTTPMiddleware):
                         select(Clinic.id).where(Clinic.external_org_id == raw_tenant, Clinic.is_deleted.is_(False))
                     )
                     existing_clinic_id = retry_result.scalar_one_or_none()
+                    if existing_clinic_id:
+                        logger.info("Resolved clinic mapping after integrity retry")
                     return str(existing_clinic_id) if existing_clinic_id else None
-        except BaseException:
+        except BaseException as exc:
+            logger.exception("Failed to resolve tenant clinic id", exc_info=exc)
             return None
 
     @classmethod
@@ -65,15 +75,22 @@ class TenantJWTMiddleware(BaseHTTPMiddleware):
         raw_tenant = request.headers.get("x-clinic-id") or request.headers.get("clinic_id")
         user_id = request.headers.get("x-user-id")
         if not raw_tenant:
+            logger.warning("Missing tenant header", extra={"path": request.url.path, "method": request.method})
             return None, None
 
         try:
             clinic_id = await cls._resolve_tenant_clinic_id(raw_tenant)
-        except BaseException:
+        except BaseException as exc:
+            logger.exception("Tenant header resolution failed", exc_info=exc)
             return None, None
         if not clinic_id:
+            logger.warning(
+                "Tenant header provided but no clinic mapping found",
+                extra={"path": request.url.path, "method": request.method},
+            )
             return None, None
 
+        logger.debug("Resolved tenant context from headers", extra={"path": request.url.path, "method": request.method})
         return user_id or "external_user", clinic_id
 
     async def dispatch(self, request: Request, call_next):
@@ -95,16 +112,29 @@ class TenantJWTMiddleware(BaseHTTPMiddleware):
                 clinic_id = payload.get("clinic_id")
                 if not user_id or not clinic_id:
                     raise ValueError("Token missing required claims")
+                logger.debug("Resolved tenant context from JWT", extra={"path": request.url.path, "method": request.method})
             except ValueError:
+                logger.warning("JWT decode/claims failed; falling back to tenant headers")
                 user_id, clinic_id = await self._extract_header_context(request)
         else:
+            logger.debug("No bearer token provided; using tenant headers")
             user_id, clinic_id = await self._extract_header_context(request)
 
         if not user_id or not clinic_id:
+            logger.warning(
+                "Rejecting request due to missing tenant authentication context",
+                extra={"path": request.url.path, "method": request.method},
+            )
             return JSONResponse(status_code=401, content={"detail": "Missing tenant authentication context"})
 
         request.state.user_id = user_id
         request.state.clinic_id = clinic_id
         set_current_tenant(clinic_id)
+
+        if settings.tenant_auth_log_success:
+            logger.info(
+                "Tenant context attached",
+                extra={"path": request.url.path, "method": request.method},
+            )
 
         return await call_next(request)

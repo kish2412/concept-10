@@ -1,3 +1,5 @@
+import logging
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
@@ -6,7 +8,21 @@ from app.core.config import settings
 from app.core.middleware import TenantJWTMiddleware
 
 
+def configure_logging() -> None:
+    root_logger = logging.getLogger()
+    if root_logger.handlers:
+        root_logger.setLevel(settings.log_level.upper())
+        return
+
+    logging.basicConfig(
+        level=settings.log_level.upper(),
+        format="%(asctime)s | %(levelname)s | %(name)s | %(message)s",
+    )
+
+
 def create_app() -> FastAPI:
+    configure_logging()
+
     app = FastAPI(
         title="Concept 10 API",
         version="0.1.0",

@@ -16,6 +16,8 @@ class Settings(BaseSettings):
     secret_key: str = "change_me"
     algorithm: str = "HS256"
     access_token_expire_minutes: int = 60
+    log_level: str = "INFO"
+    tenant_auth_log_success: bool = False
 
     frontend_origins: list[str] = ["http://localhost:3000"]
 
