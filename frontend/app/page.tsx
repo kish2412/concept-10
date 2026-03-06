@@ -1,13 +1,6 @@
-import { auth } from "@clerk/nextjs/server";
 import Link from "next/link";
-import { redirect } from "next/navigation";
 
 export default async function HomePage() {
-  const { userId } = await (await auth());
-  if (userId) {
-    redirect("/patients");
-  }
-
   return (
     <main className="flex min-h-screen items-center justify-center p-6">
       <div className="space-y-4 text-center">
