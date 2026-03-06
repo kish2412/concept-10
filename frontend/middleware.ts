@@ -1,22 +1,35 @@
 import { clerkMiddleware, createRouteMatcher } from "@clerk/nextjs/server";
 import { NextResponse } from "next/server";
 
-const isProtectedRoute = createRouteMatcher([
+const isDashboardRoute = createRouteMatcher([
   "/patients(.*)",
   "/encounters(.*)",
   "/medications(.*)",
   "/settings(.*)",
 ]);
+const isSelectClinicRoute = createRouteMatcher(["/select-clinic(.*)"]);
 
 export default clerkMiddleware(async (auth, req) => {
-  const { userId } = await auth();
+  const { userId, orgId } = await auth();
 
   if (req.nextUrl.pathname === "/" && userId) {
-    return NextResponse.redirect(new URL("/patients", req.url));
+    const destination = orgId ? "/patients" : "/select-clinic";
+    return NextResponse.redirect(new URL(destination, req.url));
   }
 
-  if (isProtectedRoute(req)) {
+  if (isSelectClinicRoute(req)) {
     await auth.protect();
+    if (orgId) {
+      return NextResponse.redirect(new URL("/patients", req.url));
+    }
+    return;
+  }
+
+  if (isDashboardRoute(req)) {
+    await auth.protect();
+    if (!orgId) {
+      return NextResponse.redirect(new URL("/select-clinic", req.url));
+    }
   }
 });
 

@@ -1,18 +1,6 @@
 import { OrganizationSwitcher } from "@clerk/nextjs";
-import { auth } from "@clerk/nextjs/server";
-import { redirect } from "next/navigation";
 
-export default async function SelectClinicPage() {
-  const { userId, orgId } = await (await auth());
-
-  if (!userId) {
-    redirect("/sign-in");
-  }
-
-  if (orgId) {
-    redirect("/patients");
-  }
-
+export default function SelectClinicPage() {
   return (
     <main className="flex min-h-screen items-center justify-center p-6">
       <div className="space-y-4 rounded-lg border p-6">
