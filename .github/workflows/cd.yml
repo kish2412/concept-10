@@ -1,9 +1,7 @@
 name: CD
 
 on:
-  push:
-    branches:
-      - main
+  # Legacy workflow kept for manual fallback runs.
   workflow_dispatch:
 
 jobs:
