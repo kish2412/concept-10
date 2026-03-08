@@ -6,6 +6,7 @@ const isDashboardRoute = createRouteMatcher([
   "/encounters(.*)",
   "/medications(.*)",
   "/settings(.*)",
+  "/queue(.*)",
 ]);
 const isSelectClinicRoute = createRouteMatcher(["/select-clinic(.*)"]);
 

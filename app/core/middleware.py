@@ -112,6 +112,7 @@ class TenantJWTMiddleware(BaseHTTPMiddleware):
                 clinic_id = payload.get("clinic_id")
                 if not user_id or not clinic_id:
                     raise ValueError("Token missing required claims")
+                request.state._jwt_role = payload.get("role", "provider")
                 logger.debug("Resolved tenant context from JWT", extra={"path": request.url.path, "method": request.method})
             except ValueError:
                 logger.warning("JWT decode/claims failed; falling back to tenant headers")
@@ -129,6 +130,7 @@ class TenantJWTMiddleware(BaseHTTPMiddleware):
 
         request.state.user_id = user_id
         request.state.clinic_id = clinic_id
+        request.state.user_role = getattr(request.state, "_jwt_role", None) or request.headers.get("x-user-role", "provider")
         set_current_tenant(clinic_id)
 
         if settings.tenant_auth_log_success:

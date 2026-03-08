@@ -17,6 +17,11 @@ class Settings(BaseSettings):
     access_token_expire_minutes: int = 60
     log_level: str = "INFO"
     tenant_auth_log_success: bool = False
+    agentic_enabled: bool = False
+    llm_provider: str = "none"
+    llm_model: str = "none"
+    openai_api_key: str | None = None
+    openai_base_url: str | None = None
 
     frontend_origins: list[str] = []
 
