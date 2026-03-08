@@ -356,7 +356,7 @@ export default function EncountersPage() {
                 <div className="pt-2">
                   <Button
                     type="button"
-                    variant="secondary"
+                    variant="outline"
                     size="sm"
                     onClick={() => {
                       setIsDrawerOpen(false);
