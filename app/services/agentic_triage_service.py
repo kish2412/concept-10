@@ -1,7 +1,10 @@
+import json
+import logging
 import re
 import uuid
 from dataclasses import dataclass
 from datetime import datetime, timezone
+from typing import Any
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -9,6 +12,35 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.config import settings
 from app.models.patient_background import PatientBackground
 from app.services.encounter_service import get_encounter_by_id
+
+
+logger = logging.getLogger(__name__)
+
+
+TRIAGE_SUMMARY_SYSTEM_PROMPT = """
+You are a senior clinical triage documentation assistant for licensed clinicians.
+Generate a concise, structured triage summary using only provided encounter data.
+
+Hard rules:
+- Do not invent facts.
+- If information is unavailable, state "Not documented".
+- Separate observations from clinical focus suggestions.
+- Do not provide definitive diagnosis.
+- Explicitly call out urgent safety concerns.
+
+Return strict JSON only with this shape:
+{
+    "summary": "string",
+    "clinician_focus_points": ["string"],
+    "red_flags": ["string"],
+    "missing_information": ["string"]
+}
+
+Style:
+- summary max 220 words.
+- Clear, clinician-ready language.
+- Include objective values when available.
+""".strip()
 
 
 @dataclass
@@ -96,6 +128,144 @@ def _collect_red_flags(vitals) -> list[str]:
     return flags
 
 
+def _merge_unique(primary: list[str], secondary: list[str]) -> list[str]:
+    seen: set[str] = set()
+    merged: list[str] = []
+    for item in primary + secondary:
+        normalized = (item or "").strip()
+        if not normalized:
+            continue
+        key = normalized.lower()
+        if key in seen:
+            continue
+        seen.add(key)
+        merged.append(normalized)
+    return merged
+
+
+def _extract_json_object(text: str) -> dict[str, Any] | None:
+    text = (text or "").strip()
+    if not text:
+        return None
+
+    try:
+        parsed = json.loads(text)
+        return parsed if isinstance(parsed, dict) else None
+    except json.JSONDecodeError:
+        pass
+
+    match = re.search(r"\{[\s\S]*\}", text)
+    if not match:
+        return None
+
+    try:
+        parsed = json.loads(match.group(0))
+        return parsed if isinstance(parsed, dict) else None
+    except json.JSONDecodeError:
+        return None
+
+
+def _normalize_str_list(value: Any) -> list[str]:
+    if not isinstance(value, list):
+        return []
+    return [str(item).strip() for item in value if str(item).strip()]
+
+
+async def _generate_llm_triage_payload(context: dict[str, Any]) -> dict[str, Any] | None:
+    if settings.llm_provider.lower() != "openai" or not settings.openai_api_key:
+        logger.info(
+            "Triage LLM skipped: provider/key not configured",
+            extra={
+                "llm_provider": settings.llm_provider,
+                "has_openai_key": bool(settings.openai_api_key),
+            },
+        )
+        return None
+
+    try:
+        from openai import AsyncOpenAI  # pyright: ignore[reportMissingImports]
+
+        kwargs: dict[str, Any] = {"api_key": settings.openai_api_key}
+        if settings.openai_base_url:
+            kwargs["base_url"] = settings.openai_base_url
+
+        client = AsyncOpenAI(**kwargs)
+        logger.info(
+            "Triage LLM request started",
+            extra={
+                "llm_provider": settings.llm_provider,
+                "llm_model": settings.llm_model,
+                "encounter_id": context.get("encounter_id"),
+            },
+        )
+        response = await client.responses.create(
+            model=settings.llm_model,
+            input=[
+                {"role": "system", "content": TRIAGE_SUMMARY_SYSTEM_PROMPT},
+                {
+                    "role": "user",
+                    "content": (
+                        "Generate triage summary JSON from this encounter context. "
+                        "Use only facts in the payload.\\n"
+                        f"{json.dumps(context, ensure_ascii=True)}"
+                    ),
+                },
+            ],
+            temperature=0.1,
+            max_output_tokens=500,
+        )
+
+        payload = _extract_json_object((response.output_text or "").strip())
+        if not payload:
+            logger.warning(
+                "Triage LLM response parsing failed",
+                extra={
+                    "llm_provider": settings.llm_provider,
+                    "llm_model": settings.llm_model,
+                    "encounter_id": context.get("encounter_id"),
+                },
+            )
+            return None
+
+        summary = (payload.get("summary") or "").strip()
+        if not summary:
+            logger.warning(
+                "Triage LLM response missing summary field",
+                extra={
+                    "llm_provider": settings.llm_provider,
+                    "llm_model": settings.llm_model,
+                    "encounter_id": context.get("encounter_id"),
+                },
+            )
+            return None
+
+        logger.info(
+            "Triage LLM request succeeded",
+            extra={
+                "llm_provider": settings.llm_provider,
+                "llm_model": settings.llm_model,
+                "encounter_id": context.get("encounter_id"),
+            },
+        )
+
+        return {
+            "summary": summary,
+            "clinician_focus_points": _normalize_str_list(payload.get("clinician_focus_points")),
+            "red_flags": _normalize_str_list(payload.get("red_flags")),
+            "missing_information": _normalize_str_list(payload.get("missing_information")),
+        }
+    except Exception:
+        logger.exception(
+            "Triage LLM request failed",
+            extra={
+                "llm_provider": settings.llm_provider,
+                "llm_model": settings.llm_model,
+                "encounter_id": context.get("encounter_id"),
+            },
+        )
+        return None
+
+
 async def generate_triage_summary(
     db: AsyncSession,
     clinic_id: uuid.UUID,
@@ -176,14 +346,61 @@ async def generate_triage_summary(
     if not focus_points:
         focus_points.append("Gather focused symptom timeline and complete exam before diagnosis.")
 
+    deterministic_summary = " ".join(summary_parts)
+
+    llm_context = {
+        "encounter_id": str(encounter.encounter_id),
+        "encounter_status": encounter.status,
+        "chief_complaint": chief_complaint or "Not documented",
+        "latest_vitals": vitals_line or "Not documented",
+        "relevant_prior_medical_history": (
+            background.medical_history.strip()[:1200]
+            if background and background.medical_history and background.medical_history.strip()
+            else "Not documented"
+        ),
+        "chronic_conditions": chronic_conditions[:8],
+        "detected_red_flags": red_flags,
+        "detected_missing_information": missing_information,
+        "recent_note_context": [_strip_html(field)[:240] for field in note_fields if _strip_html(field)][:8],
+    }
+
+    llm_payload = await _generate_llm_triage_payload(llm_context)
+    if llm_payload:
+        summary = llm_payload["summary"]
+        focus_points = _merge_unique(llm_payload["clinician_focus_points"], focus_points)
+        red_flags = _merge_unique(red_flags, llm_payload["red_flags"])
+        missing_information = _merge_unique(missing_information, llm_payload["missing_information"])
+        orchestration = "triage_summary_v2_llm"
+        logger.info(
+            "Triage summary generated via LLM",
+            extra={
+                "encounter_id": str(encounter_id),
+                "orchestration": orchestration,
+                "llm_provider": settings.llm_provider,
+                "llm_model": settings.llm_model,
+            },
+        )
+    else:
+        summary = deterministic_summary
+        orchestration = "triage_summary_v1"
+        logger.info(
+            "Triage summary fallback to deterministic generator",
+            extra={
+                "encounter_id": str(encounter_id),
+                "orchestration": orchestration,
+                "llm_provider": settings.llm_provider,
+                "llm_model": settings.llm_model,
+            },
+        )
+
     return TriageSummaryResult(
         encounter_id=encounter_id,
-        summary=" ".join(summary_parts),
+        summary=summary,
         clinician_focus_points=focus_points,
         red_flags=red_flags,
         missing_information=missing_information,
         generated_at=datetime.now(timezone.utc),
-        orchestration="triage_summary_v1",
+        orchestration=orchestration,
         model_provider=settings.llm_provider,
         model_name=settings.llm_model,
         guardrail_profile=guardrail_profile,

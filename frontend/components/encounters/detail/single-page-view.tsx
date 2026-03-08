@@ -305,6 +305,10 @@ export function EncounterSinglePageView({
                   <EmptyState label="No major documentation gaps detected" />
                 )}
               </div>
+
+              <p className="text-[11px] text-muted-foreground">
+                Generated {formatDateTime(summary.generated_at)} using {summary.orchestration} ({summary.model_provider}/{summary.model_name})
+              </p>
             </div>
           ) : (
             <EmptyState label="No summary generated yet" />
