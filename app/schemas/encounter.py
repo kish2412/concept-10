@@ -222,6 +222,15 @@ class EncounterResponse(BaseModel):
     encounter_type: str
     status: str
     chief_complaint: str | None
+    ai_triage_summary: str | None = None
+    ai_triage_focus_points: list[str] | None = None
+    ai_triage_red_flags: list[str] | None = None
+    ai_triage_missing_information: list[str] | None = None
+    ai_triage_generated_at: datetime | None = None
+    ai_triage_orchestration: str | None = None
+    ai_triage_model_provider: str | None = None
+    ai_triage_model_name: str | None = None
+    ai_triage_guardrail_profile: str | None = None
     scheduled_at: datetime | None
     checked_in_at: datetime | None
     triage_at: datetime | None

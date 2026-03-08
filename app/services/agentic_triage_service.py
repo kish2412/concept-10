@@ -393,13 +393,29 @@ async def generate_triage_summary(
             },
         )
 
+    generated_at = datetime.now(timezone.utc)
+
+    # Persist latest triage AI output on the encounter for retrieval/history snapshots.
+    encounter.ai_triage_summary = summary
+    encounter.ai_triage_focus_points = focus_points
+    encounter.ai_triage_red_flags = red_flags
+    encounter.ai_triage_missing_information = missing_information
+    encounter.ai_triage_generated_at = generated_at
+    encounter.ai_triage_orchestration = orchestration
+    encounter.ai_triage_model_provider = settings.llm_provider
+    encounter.ai_triage_model_name = settings.llm_model
+    encounter.ai_triage_guardrail_profile = guardrail_profile
+
+    db.add(encounter)
+    await db.commit()
+
     return TriageSummaryResult(
         encounter_id=encounter_id,
         summary=summary,
         clinician_focus_points=focus_points,
         red_flags=red_flags,
         missing_information=missing_information,
-        generated_at=datetime.now(timezone.utc),
+        generated_at=generated_at,
         orchestration=orchestration,
         model_provider=settings.llm_provider,
         model_name=settings.llm_model,
