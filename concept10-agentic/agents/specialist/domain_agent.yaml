@@ -1,0 +1,7 @@
+id: specialist.domain
+name: Domain Specialist Agent
+role: domain_reasoning
+description: Produces domain-specialist recommendations.
+model_provider_env: DEFAULT_AGENT_PROVIDER
+model_name_env: DEFAULT_AGENT_MODEL
+prompt_template: core/prompts/specialist_system.j2

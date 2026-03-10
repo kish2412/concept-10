@@ -1,0 +1,23 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  color: #10212b;
+  background: radial-gradient(circle at 10% 10%, #ffffff 0%, #ecf2f4 45%, #dce7ed 100%);
+}
+
+html,
+body,
+#root {
+  height: 100%;
+}
+
+body {
+  margin: 0;
+  font-family: "Space Grotesk", "Manrope", sans-serif;
+}
+
+.react-flow__attribution {
+  display: none;
+}

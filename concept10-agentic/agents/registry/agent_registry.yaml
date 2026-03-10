@@ -1,0 +1,98 @@
+version: 1
+agents:
+  - id: loan-approval-orchestrator
+    category: orchestrator
+    version: 1.2.0
+    description: Coordinates end-to-end loan approval workflow across specialist and utility agents.
+    prompt_template: core/prompts/templates/orchestrator.j2
+    input_schema: core.schemas.base.AgentRequest
+    output_schema: core.schemas.base.AgentResponse
+    tags: [finance, lending, orchestration]
+    tools:
+      - policy-retrieval-utility
+      - credit-bureau-specialist
+      - fraud-risk-specialist
+      - underwriter-human-review
+    governance_profile: core/governance/rail_specs/orchestrator.rail
+    langsmith_project: concept10-loan-orchestrator
+    otel_service_name: agent.loan.approval.orchestrator
+    human_review_required: false
+    max_context_tokens: 12000
+
+  - id: policy-retrieval-utility
+    category: utility
+    version: 1.0.3
+    description: Retrieves policy clauses and supporting context from approved knowledge stores.
+    prompt_template: core/prompts/templates/utility.j2
+    input_schema: core.schemas.base.AgentRequest
+    output_schema: core.schemas.base.AgentResponse
+    tags: [knowledge, policy]
+    tools: []
+    governance_profile: core/governance/rail_specs/utility.rail
+    langsmith_project: concept10-policy-utility
+    otel_service_name: agent.policy.retrieval.utility
+    human_review_required: false
+    max_context_tokens: 6000
+
+  - id: pii-redaction-utility
+    category: utility
+    version: 2.1.0
+    description: Detects and redacts sensitive personal data before downstream processing.
+    prompt_template: core/prompts/templates/utility.j2
+    input_schema: core.schemas.base.AgentRequest
+    output_schema: core.schemas.base.AgentResponse
+    tags: [privacy, pii, compliance]
+    tools: []
+    governance_profile: core/governance/rail_specs/utility.rail
+    langsmith_project: concept10-pii-utility
+    otel_service_name: agent.pii.redaction.utility
+    human_review_required: false
+    max_context_tokens: 4000
+
+  - id: credit-bureau-specialist
+    category: specialist
+    version: 1.1.0
+    description: Interprets credit bureau signals and summarizes applicant creditworthiness.
+    prompt_template: core/prompts/templates/specialist.j2
+    input_schema: core.schemas.base.AgentRequest
+    output_schema: core.schemas.base.AgentResponse
+    tags: [finance, credit, lending]
+    tools:
+      - policy-retrieval-utility
+    governance_profile: core/governance/rail_specs/specialist.rail
+    langsmith_project: concept10-credit-specialist
+    otel_service_name: agent.credit.bureau.specialist
+    human_review_required: false
+    max_context_tokens: 8000
+
+  - id: fraud-risk-specialist
+    category: specialist
+    version: 0.9.0-deprecated
+    description: Scores fraud risk patterns and highlights suspicious applicant behavior.
+    prompt_template: core/prompts/templates/specialist.j2
+    input_schema: core.schemas.base.AgentRequest
+    output_schema: core.schemas.base.AgentResponse
+    tags: [fraud, risk, finance]
+    tools:
+      - pii-redaction-utility
+    governance_profile: core/governance/rail_specs/specialist.rail
+    langsmith_project: concept10-fraud-specialist
+    otel_service_name: agent.fraud.risk.specialist
+    human_review_required: true
+    max_context_tokens: 7000
+
+  - id: underwriter-human-review
+    category: human-in-loop
+    version: 1.0.0
+    description: Escalates borderline cases for underwriter adjudication and final sign-off.
+    prompt_template: core/prompts/templates/orchestrator.j2
+    input_schema: core.schemas.base.AgentRequest
+    output_schema: core.schemas.base.AgentResponse
+    tags: [human-review, lending, adjudication]
+    tools:
+      - policy-retrieval-utility
+    governance_profile: core/governance/rail_specs/orchestrator.rail
+    langsmith_project: concept10-underwriter-review
+    otel_service_name: agent.underwriter.human.review
+    human_review_required: true
+    max_context_tokens: 5000

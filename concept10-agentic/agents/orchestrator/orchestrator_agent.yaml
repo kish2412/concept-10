@@ -1,0 +1,7 @@
+id: orchestrator.default
+name: Default Orchestrator Agent
+role: route_and_coordinate
+description: Routes tasks to utility and specialist agents.
+model_provider_env: DEFAULT_AGENT_PROVIDER
+model_name_env: DEFAULT_AGENT_MODEL
+prompt_template: core/prompts/orchestrator_system.j2

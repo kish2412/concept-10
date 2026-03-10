@@ -1,0 +1,9 @@
+<rail version="0.1">
+  <output>
+    <object name="response" format="json" />
+  </output>
+  <validators>
+    <validator name="OutputSchemaValidator" on="output" />
+    <validator name="PIIRedactionValidator" on="output" />
+  </validators>
+</rail>

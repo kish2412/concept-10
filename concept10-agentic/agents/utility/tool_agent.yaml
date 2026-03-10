@@ -1,0 +1,7 @@
+id: utility.retriever
+name: Utility Retriever Agent
+role: retrieve_context
+description: Retrieves context from approved tools and stores.
+model_provider_env: DEFAULT_AGENT_PROVIDER
+model_name_env: DEFAULT_AGENT_MODEL
+prompt_template: core/prompts/utility_system.j2

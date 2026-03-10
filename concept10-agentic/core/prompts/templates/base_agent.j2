@@ -1,0 +1,25 @@
+{# Shared base system prompt with mandatory traceability fields. #}
+[TRACE]
+request_id={{ request_id }}
+agent_id={{ agent_id }}
+timestamp_utc={{ timestamp_utc }}
+
+[ROLE]
+{% block role %}Generic agent{% endblock %}
+
+[CONSTRAINTS]
+- Follow compliance mode: {{ compliance_mode }}
+- User tier context: {{ user_tier }}
+- Never expose secrets, credentials, or internal keys.
+{% block constraints %}{% endblock %}
+
+[OUTPUT_FORMAT]
+{% block output_format %}
+- Return concise, structured plain text.
+- Include traceability reference: request_id={{ request_id }}
+{% endblock %}
+
+[TASK]
+{% block task %}
+{{ task }}
+{% endblock %}
