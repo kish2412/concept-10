@@ -3,9 +3,10 @@ import logging
 import re
 import uuid
 from dataclasses import dataclass
-from datetime import datetime, timezone
+from datetime import date, datetime, timezone
 from typing import Any
 
+import httpx
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -55,6 +56,7 @@ class TriageSummaryResult:
     model_provider: str
     model_name: str
     guardrail_profile: str | None
+    langsmith_trace_url: str | None
 
 
 def _strip_html(value: str | None) -> str:
@@ -169,6 +171,188 @@ def _normalize_str_list(value: Any) -> list[str]:
     if not isinstance(value, list):
         return []
     return [str(item).strip() for item in value if str(item).strip()]
+
+
+def _calculate_age_years(date_of_birth: date | None) -> int:
+    if not date_of_birth:
+        return 0
+    today = datetime.now(timezone.utc).date()
+    years = today.year - date_of_birth.year
+    if (today.month, today.day) < (date_of_birth.month, date_of_birth.day):
+        years -= 1
+    return max(years, 0)
+
+
+def _gender_to_triage_sex(gender: str | None) -> str:
+    value = (gender or "").strip().lower()
+    if value in {"male", "m"}:
+        return "M"
+    if value in {"female", "f"}:
+        return "F"
+    if value:
+        return "other"
+    return "unknown"
+
+
+def _nurse_concern_level(vitals, red_flags: list[str]) -> str:
+    if red_flags:
+        return "emergency"
+    if not vitals:
+        return "urgent"
+    if vitals.pain_score is not None and int(vitals.pain_score) >= 7:
+        return "urgent"
+    return "routine"
+
+
+def _pain_severity(pain_score: int | None) -> str:
+    if pain_score is None:
+        return "moderate"
+    if pain_score >= 8:
+        return "critical"
+    if pain_score >= 5:
+        return "severe"
+    if pain_score >= 3:
+        return "moderate"
+    return "mild"
+
+
+def _parse_current_medications(raw_value: str | None) -> list[str]:
+    if not raw_value:
+        return []
+    return [item.strip() for item in re.split(r"\r?\n|;", raw_value) if item.strip()]
+
+
+def _specialist_triage_url() -> str | None:
+    base = (settings.agentic_service_base_url or "").strip()
+    if not base:
+        return None
+    trimmed = base.rstrip("/")
+    if trimmed.endswith("/specialist"):
+        return f"{trimmed}/triage/summarise"
+    return f"{trimmed}/specialist/triage/summarise"
+
+
+def _build_specialist_triage_payload(
+    encounter,
+    background: PatientBackground | None,
+    latest_vitals,
+    chief_complaint: str | None,
+    red_flags: list[str],
+    note_fields: list[str],
+) -> dict[str, Any]:
+    triage_assessment = encounter.triage_assessment if isinstance(encounter.triage_assessment, dict) else {}
+    presenting_symptoms = triage_assessment.get("presenting_symptoms")
+    if not isinstance(presenting_symptoms, list) or not presenting_symptoms:
+        presenting_symptoms = [chief_complaint] if chief_complaint else ["Not documented"]
+
+    pain_score = None
+    if triage_assessment.get("pain_score") is not None:
+        try:
+            pain_score = int(triage_assessment["pain_score"])
+        except (TypeError, ValueError):
+            pain_score = None
+    elif latest_vitals and latest_vitals.pain_score is not None:
+        pain_score = int(latest_vitals.pain_score)
+
+    recent_note_text = " ".join([_strip_html(item)[:220] for item in note_fields[:4] if _strip_html(item)]).strip()
+    if not recent_note_text:
+        recent_note_text = "Not documented"
+
+    patient = encounter.patient
+    known_allergies = patient.allergies if patient and isinstance(patient.allergies, list) else []
+
+    return {
+        "visit_id": encounter.encounter_id,
+        "patient_id": str(encounter.patient_id),
+        "request_id": str(uuid.uuid4()),
+        "vitals": {
+            "temperature_celsius": float(latest_vitals.temperature) if latest_vitals and latest_vitals.temperature is not None else None,
+            "heart_rate_bpm": int(latest_vitals.pulse_rate) if latest_vitals and latest_vitals.pulse_rate is not None else None,
+            "respiratory_rate_rpm": int(latest_vitals.respiratory_rate) if latest_vitals and latest_vitals.respiratory_rate is not None else None,
+            "systolic_bp_mmhg": int(latest_vitals.blood_pressure_systolic) if latest_vitals and latest_vitals.blood_pressure_systolic is not None else None,
+            "diastolic_bp_mmhg": int(latest_vitals.blood_pressure_diastolic) if latest_vitals and latest_vitals.blood_pressure_diastolic is not None else None,
+            "spo2_percent": float(latest_vitals.oxygen_saturation) if latest_vitals and latest_vitals.oxygen_saturation is not None else None,
+            "gcs_score": None,
+            "pain_score": pain_score,
+            "weight_kg": float(latest_vitals.weight) if latest_vitals and latest_vitals.weight is not None else None,
+            "height_cm": float(latest_vitals.height) if latest_vitals and latest_vitals.height is not None else None,
+        },
+        "chief_complaint": {
+            "primary_complaint": chief_complaint or "Not documented",
+            "onset_description": triage_assessment.get("symptom_onset"),
+            "duration_minutes": None,
+            "severity": _pain_severity(pain_score),
+            "associated_symptoms": [str(item).strip() for item in presenting_symptoms if str(item).strip()],
+        },
+        "patient_context": {
+            "age_years": _calculate_age_years(patient.date_of_birth if patient else None),
+            "sex": _gender_to_triage_sex(patient.gender if patient else None),
+            "is_pregnant": False,
+            "gestational_weeks": None,
+            "known_allergies": known_allergies,
+            "current_medications": _parse_current_medications(background.current_medications if background else None),
+            "relevant_history": [
+                item
+                for item in [
+                    background.medical_history.strip() if background and background.medical_history else "",
+                    background.surgical_history.strip() if background and background.surgical_history else "",
+                    background.family_history.strip() if background and background.family_history else "",
+                ]
+                if item
+            ],
+            "mobility_status": (triage_assessment.get("mobility_status") or "ambulatory") if isinstance(triage_assessment, dict) else "ambulatory",
+            "communication_barrier": False,
+            "preferred_language": "en",
+            "arrived_by": "walk_in",
+        },
+        "nurse_notes": {
+            "free_text": recent_note_text,
+            "nurse_initial_concern": _nurse_concern_level(latest_vitals, red_flags),
+            "nurse_id": str(encounter.updated_by or encounter.created_by or encounter.provider_id or "system"),
+            "assessment_timestamp": (latest_vitals.recorded_at if latest_vitals and latest_vitals.recorded_at else datetime.now(timezone.utc)).isoformat(),
+        },
+        "triage_start_timestamp": (encounter.triage_at or datetime.now(timezone.utc)).isoformat(),
+    }
+
+
+async def _generate_specialist_triage_payload(payload: dict[str, Any]) -> tuple[dict[str, Any], str | None] | None:
+    url = _specialist_triage_url()
+    if not settings.agentic_enabled or not url:
+        return None
+
+    token = (settings.agentic_service_token or "local-agentic-service-token").strip()
+    headers = {
+        "Authorization": f"Bearer {token}",
+        "X-User-Role": settings.agentic_service_role,
+    }
+
+    try:
+        timeout = max(int(settings.agentic_service_timeout_seconds), 1)
+        async with httpx.AsyncClient(timeout=timeout) as client:
+            response = await client.post(url, json=payload, headers=headers)
+
+        if response.status_code >= 400:
+            logger.warning(
+                "Specialist triage request failed",
+                extra={
+                    "status_code": response.status_code,
+                    "service_url": url,
+                    "response_text": response.text[:500],
+                },
+            )
+            return None
+
+        content = response.json()
+        if not isinstance(content, dict):
+            return None
+
+        return content, response.headers.get("X-LangSmith-URL")
+    except Exception:
+        logger.exception(
+            "Specialist triage request exception",
+            extra={"service_url": url},
+        )
+        return None
 
 
 async def _generate_llm_triage_payload(context: dict[str, Any]) -> dict[str, Any] | None:
@@ -364,34 +548,98 @@ async def generate_triage_summary(
         "recent_note_context": [_strip_html(field)[:240] for field in note_fields if _strip_html(field)][:8],
     }
 
-    llm_payload = await _generate_llm_triage_payload(llm_context)
-    if llm_payload:
-        summary = llm_payload["summary"]
-        focus_points = _merge_unique(llm_payload["clinician_focus_points"], focus_points)
-        red_flags = _merge_unique(red_flags, llm_payload["red_flags"])
-        missing_information = _merge_unique(missing_information, llm_payload["missing_information"])
-        orchestration = "triage_summary_v2_llm"
+    specialist_payload = _build_specialist_triage_payload(
+        encounter=encounter,
+        background=background,
+        latest_vitals=latest_vitals,
+        chief_complaint=chief_complaint,
+        red_flags=red_flags,
+        note_fields=note_fields,
+    )
+
+    langsmith_trace_url: str | None = None
+    specialist_result = await _generate_specialist_triage_payload(specialist_payload)
+    if specialist_result:
+        specialist_data, langsmith_trace_url = specialist_result
+        clinical_summary = specialist_data.get("clinical_summary") if isinstance(specialist_data.get("clinical_summary"), dict) else {}
+
+        summary = " ".join(
+            [
+                str(clinical_summary.get("one_liner") or "").strip(),
+                str(clinical_summary.get("presenting_problem") or "").strip(),
+                str(clinical_summary.get("vital_signs_interpretation") or "").strip(),
+            ]
+        ).strip() or deterministic_summary
+
+        specialist_focus = _normalize_str_list(clinical_summary.get("recommended_workup"))
+        specialist_focus = _merge_unique(
+            specialist_focus,
+            _normalize_str_list(clinical_summary.get("key_risk_factors")),
+        )
+        specialist_focus = _merge_unique(
+            specialist_focus,
+            _normalize_str_list(clinical_summary.get("differential_considerations")),
+        )
+
+        specialist_red_flags = []
+        emergency_flags = specialist_data.get("emergency_flags")
+        if isinstance(emergency_flags, list):
+            for item in emergency_flags:
+                if isinstance(item, dict):
+                    description = str(item.get("description") or "").strip()
+                    if description:
+                        specialist_red_flags.append(description)
+
+        focus_points = _merge_unique(specialist_focus, focus_points)
+        red_flags = _merge_unique(red_flags, specialist_red_flags)
+        missing_information = _merge_unique(
+            missing_information,
+            _normalize_str_list(specialist_data.get("missing_information")),
+        )
+        orchestration = "triage_summary_specialist_agent"
+        model_provider = "concept10-agentic"
+        model_name = "triage-summary-agent"
         logger.info(
-            "Triage summary generated via LLM",
+            "Triage summary generated via specialist agent",
             extra={
                 "encounter_id": str(encounter_id),
                 "orchestration": orchestration,
-                "llm_provider": settings.llm_provider,
-                "llm_model": settings.llm_model,
+                "service_url": settings.agentic_service_base_url,
             },
         )
     else:
-        summary = deterministic_summary
-        orchestration = "triage_summary_v1"
-        logger.info(
-            "Triage summary fallback to deterministic generator",
-            extra={
-                "encounter_id": str(encounter_id),
-                "orchestration": orchestration,
-                "llm_provider": settings.llm_provider,
-                "llm_model": settings.llm_model,
-            },
-        )
+        llm_payload = await _generate_llm_triage_payload(llm_context)
+        if llm_payload:
+            summary = llm_payload["summary"]
+            focus_points = _merge_unique(llm_payload["clinician_focus_points"], focus_points)
+            red_flags = _merge_unique(red_flags, llm_payload["red_flags"])
+            missing_information = _merge_unique(missing_information, llm_payload["missing_information"])
+            orchestration = "triage_summary_v2_llm"
+            model_provider = settings.llm_provider
+            model_name = settings.llm_model
+            logger.info(
+                "Triage summary generated via LLM",
+                extra={
+                    "encounter_id": str(encounter_id),
+                    "orchestration": orchestration,
+                    "llm_provider": settings.llm_provider,
+                    "llm_model": settings.llm_model,
+                },
+            )
+        else:
+            summary = deterministic_summary
+            orchestration = "triage_summary_v1"
+            model_provider = settings.llm_provider
+            model_name = settings.llm_model
+            logger.info(
+                "Triage summary fallback to deterministic generator",
+                extra={
+                    "encounter_id": str(encounter_id),
+                    "orchestration": orchestration,
+                    "llm_provider": settings.llm_provider,
+                    "llm_model": settings.llm_model,
+                },
+            )
 
     generated_at = datetime.now(timezone.utc)
 
@@ -402,8 +650,8 @@ async def generate_triage_summary(
     encounter.ai_triage_missing_information = missing_information
     encounter.ai_triage_generated_at = generated_at
     encounter.ai_triage_orchestration = orchestration
-    encounter.ai_triage_model_provider = settings.llm_provider
-    encounter.ai_triage_model_name = settings.llm_model
+    encounter.ai_triage_model_provider = model_provider
+    encounter.ai_triage_model_name = model_name
     encounter.ai_triage_guardrail_profile = guardrail_profile
 
     db.add(encounter)
@@ -417,7 +665,8 @@ async def generate_triage_summary(
         missing_information=missing_information,
         generated_at=generated_at,
         orchestration=orchestration,
-        model_provider=settings.llm_provider,
-        model_name=settings.llm_model,
+        model_provider=model_provider,
+        model_name=model_name,
         guardrail_profile=guardrail_profile,
+        langsmith_trace_url=langsmith_trace_url,
     )

@@ -29,6 +29,14 @@ class EncounterStatus(str, Enum):
     NO_SHOW = "NO_SHOW"
 
 
+class TriageAcuity(str, Enum):
+    RESUSCITATION = "RESUSCITATION"
+    EMERGENT = "EMERGENT"
+    URGENT = "URGENT"
+    LESS_URGENT = "LESS_URGENT"
+    NON_URGENT = "NON_URGENT"
+
+
 class NoteType(str, Enum):
     SOAP = "SOAP"
     PROGRESS = "PROGRESS"
@@ -71,6 +79,18 @@ class DispositionType(str, Enum):
     REFER_ER = "REFER_ER"
     REFER_SPECIALIST = "REFER_SPECIALIST"
     OBSERVATION = "OBSERVATION"
+
+
+class TriageAssessment(BaseModel):
+    acuity: TriageAcuity
+    presenting_symptoms: list[str] = Field(min_length=1, max_length=8)
+    symptom_onset: str | None = None
+    pain_score: int | None = Field(default=None, ge=0, le=10)
+    red_flags: list[str] = Field(default_factory=list)
+    isolation_required: bool = False
+    mobility_status: str | None = None
+    allergies_verified: bool = False
+    triage_notes: str = Field(min_length=10, max_length=2000)
 
 
 # ═════════════════════════════════════════════════════════════════════
@@ -231,6 +251,7 @@ class EncounterResponse(BaseModel):
     ai_triage_model_provider: str | None = None
     ai_triage_model_name: str | None = None
     ai_triage_guardrail_profile: str | None = None
+    triage_assessment: TriageAssessment | None = None
     scheduled_at: datetime | None
     checked_in_at: datetime | None
     triage_at: datetime | None
@@ -425,6 +446,7 @@ class DispositionUpdate(BaseModel):
 
 class StatusUpdate(BaseModel):
     status: EncounterStatus
+    triage_assessment: TriageAssessment | None = None
 
 
 # ═════════════════════════════════════════════════════════════════════
@@ -446,6 +468,7 @@ class TriageSummaryResponse(BaseModel):
     model_provider: str
     model_name: str
     guardrail_profile: str | None = None
+    langsmith_trace_url: str | None = None
 
 
 # ═════════════════════════════════════════════════════════════════════

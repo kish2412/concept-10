@@ -6,13 +6,19 @@ import { QueueStatsBar } from "@/components/encounters/queue-stats-bar";
 import { QueueFilterPanel } from "@/components/encounters/queue-filter-panel";
 import { KanbanBoard } from "@/components/encounters/kanban-board";
 import { QueueTable } from "@/components/encounters/queue-table";
+import { TriageHandoffDialog } from "@/components/encounters/triage-handoff-dialog";
 import {
   useEncounterQueue,
   useTodaySummary,
   useUpdateEncounterStatus,
   useExportQueueCsv,
 } from "@/lib/use-encounter-queue";
-import type { Encounter, EncounterStatus, QueueFilters } from "@/types/encounter-queue";
+import type {
+  Encounter,
+  EncounterStatus,
+  QueueFilters,
+  TriageAssessment,
+} from "@/types/encounter-queue";
 import { NEXT_STATUS } from "@/types/encounter-queue";
 
 const defaultFilters: QueueFilters = {
@@ -28,6 +34,8 @@ export default function QueueDashboardPage() {
   const router = useRouter();
   const [filters, setFilters] = useState<QueueFilters>(defaultFilters);
   const [viewMode, setViewMode] = useState<"kanban" | "table">("kanban");
+  const [triageDialogEncounter, setTriageDialogEncounter] = useState<Encounter | null>(null);
+  const [pendingStatus, setPendingStatus] = useState<EncounterStatus | null>(null);
 
   // ── Data ──
   const { data: queueData, isLoading: queueLoading } = useEncounterQueue(filters);
@@ -37,6 +45,38 @@ export default function QueueDashboardPage() {
 
   const encounters = useMemo(() => queueData?.items ?? [], [queueData?.items]);
 
+  function startStatusTransition(encounter: Encounter, nextStatus: EncounterStatus) {
+    if (nextStatus === "WITH_PROVIDER") {
+      setTriageDialogEncounter(encounter);
+      setPendingStatus(nextStatus);
+      return;
+    }
+    statusMutation.mutate({ id: encounter.id, status: nextStatus });
+  }
+
+  function closeTriageDialog() {
+    setTriageDialogEncounter(null);
+    setPendingStatus(null);
+  }
+
+  function submitTriageAndMove(triageAssessment: TriageAssessment) {
+    if (!triageDialogEncounter || !pendingStatus) {
+      return;
+    }
+    statusMutation.mutate(
+      {
+        id: triageDialogEncounter.id,
+        status: pendingStatus,
+        triageAssessment,
+      },
+      {
+        onSuccess: () => {
+          closeTriageDialog();
+        },
+      }
+    );
+  }
+
   // ── Handlers ──
   function handleView(enc: Encounter) {
     router.push(`/encounters/${enc.id}`);
@@ -45,12 +85,16 @@ export default function QueueDashboardPage() {
   function handleMoveNext(enc: Encounter) {
     const next = NEXT_STATUS[enc.status as EncounterStatus];
     if (next) {
-      statusMutation.mutate({ id: enc.id, status: next });
+      startStatusTransition(enc, next);
     }
   }
 
   function handleStatusChange(encId: string, newStatus: EncounterStatus) {
-    statusMutation.mutate({ id: encId, status: newStatus });
+    const encounter = encounters.find((item) => item.id === encId);
+    if (!encounter) {
+      return;
+    }
+    startStatusTransition(encounter, newStatus);
   }
 
   function handleSearchChange(value: string) {
@@ -102,6 +146,14 @@ export default function QueueDashboardPage() {
           )}
         </div>
       </div>
+
+      <TriageHandoffDialog
+        open={Boolean(triageDialogEncounter && pendingStatus === "WITH_PROVIDER")}
+        encounter={triageDialogEncounter}
+        isSubmitting={statusMutation.isPending}
+        onCancel={closeTriageDialog}
+        onSubmit={submitTriageAndMove}
+      />
     </div>
   );
 }

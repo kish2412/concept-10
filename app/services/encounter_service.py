@@ -32,6 +32,10 @@ from app.schemas.encounter import (
 )
 
 
+class EncounterStatusTransitionError(ValueError):
+    """Raised when an encounter status transition violates workflow requirements."""
+
+
 # ═════════════════════════════════════════════════════════════════════
 #  Helpers
 # ═════════════════════════════════════════════════════════════════════
@@ -502,6 +506,31 @@ async def update_encounter_status(
     encounter = await get_encounter_by_id(db=db, clinic_id=clinic_id, encounter_id=encounter_id)
     if not encounter:
         return None
+
+    now = datetime.now(timezone.utc)
+    triage_assessment_payload = (
+        payload.triage_assessment.model_dump()
+        if payload.triage_assessment is not None
+        else None
+    )
+
+    if payload.status == "WITH_PROVIDER":
+        if triage_assessment_payload:
+            encounter.triage_assessment = triage_assessment_payload
+        elif not encounter.triage_assessment:
+            raise EncounterStatusTransitionError(
+                "Detailed triage assessment is required before entering in-consultation."
+            )
+
+        encounter.triage_at = encounter.triage_at or now
+        encounter.started_at = encounter.started_at or now
+    elif payload.status == "TRIAGE":
+        if triage_assessment_payload:
+            encounter.triage_assessment = triage_assessment_payload
+        encounter.triage_at = encounter.triage_at or now
+    elif triage_assessment_payload:
+        encounter.triage_assessment = triage_assessment_payload
+
     encounter.status = payload.status
     await db.commit()
     await db.refresh(encounter)

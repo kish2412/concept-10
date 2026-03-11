@@ -44,6 +44,35 @@ cp .env.example .env
 uvicorn api.main:app --reload --host 0.0.0.0 --port 8000
 ```
 
+## Run Agentic API + Dashboard
+
+Backend:
+
+```bash
+uvicorn api.app:app --reload --host 0.0.0.0 --port 8001
+```
+
+Dashboard:
+
+```bash
+cd dashboard
+npm install
+npm run dev
+```
+
+## Triage Specialist Endpoint
+
+- `POST /specialist/triage/summarise`
+- Requires `Authorization: Bearer <token>` header
+- Requires `X-User-Role` in: `nurse`, `reception`, `doctor`, `admin`
+
+## Observability and Guardrails Checks
+
+1. Ensure `LANGCHAIN_TRACING_V2=true` and LangSmith API settings are present in `.env`.
+2. Submit a triage request and verify response headers include `X-Trace-ID` and optionally `X-LangSmith-URL`.
+3. Confirm guardrails are active with `ENABLE_GOVERNANCE_VALIDATION=true`.
+4. Review governance events in `core/governance/governance_audit.jsonl`.
+
 ## Dependency Groups
 
 - `core`: FastAPI, schema/config, prompting, agent graph runtime

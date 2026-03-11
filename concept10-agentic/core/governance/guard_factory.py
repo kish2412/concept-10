@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import importlib.util
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
@@ -26,6 +27,20 @@ class GuardWrapper:
         return {"validated_output": payload, "metadata": metadata or {}}
 
 
+def _load_triage_validators_module() -> Any | None:
+    module_path = Path(__file__).resolve().parent / "validators" / "triage_validators.py"
+    if not module_path.exists():
+        return None
+
+    spec = importlib.util.spec_from_file_location("concept10_triage_validators", str(module_path))
+    if spec is None or spec.loader is None:
+        return None
+
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
 def _resolve_default_rail_spec(agent_config: AgentConfig) -> str:
     category_to_rail = {
         "orchestrator": "core/governance/rail_specs/orchestrator.rail",
@@ -47,6 +62,15 @@ def build_guard(agent_config: AgentConfig) -> "guardrails.Guard | GuardWrapper":
         "OutputSchemaValidator": OutputSchemaValidator(),
         "ToxicityGuard": ToxicityGuard(),
     }
+
+    triage_module = _load_triage_validators_module()
+    if triage_module is not None and hasattr(triage_module, "build_validators_map"):
+        try:
+            triage_validators = triage_module.build_validators_map()
+            if isinstance(triage_validators, dict):
+                validators.update(triage_validators)
+        except Exception:
+            pass
 
     try:
         import guardrails  # type: ignore

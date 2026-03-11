@@ -70,6 +70,7 @@ export type TriageAISummary = {
   model_provider: string;
   model_name: string;
   guardrail_profile: string | null;
+  langsmith_trace_url: string | null;
 };
 
 // Order form field types based on order type

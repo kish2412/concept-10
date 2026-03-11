@@ -15,6 +15,7 @@ from unittest.mock import AsyncMock, patch
 import pytest
 from httpx import AsyncClient
 
+from app.services import encounter_service as encounter_svc
 from tests.factories import (
     create_mock_disposition,
     create_mock_encounter,
@@ -125,6 +126,17 @@ class TestUpdateStatusEndpoint:
         ):
             resp = await client_provider.patch(f"{API}/{ENC_ID}/status", json={
                 "status": "WITH_PROVIDER",
+                "triage_assessment": {
+                    "acuity": "URGENT",
+                    "presenting_symptoms": ["headache"],
+                    "symptom_onset": "today",
+                    "pain_score": 5,
+                    "red_flags": [],
+                    "isolation_required": False,
+                    "mobility_status": "ambulatory",
+                    "allergies_verified": True,
+                    "triage_notes": "Patient stable but requires provider assessment.",
+                },
             })
         assert resp.status_code == 200
         assert resp.json()["status"] == "WITH_PROVIDER"
@@ -151,6 +163,20 @@ class TestUpdateStatusEndpoint:
                 "status": "WITH_PROVIDER",
             })
         assert resp.status_code == 404
+
+    async def test_triage_requirement_error_400(self, client_provider: AsyncClient):
+        with patch(
+            "app.services.encounter_service.update_encounter_status",
+            new_callable=AsyncMock,
+            side_effect=encounter_svc.EncounterStatusTransitionError(
+                "Detailed triage assessment is required before entering in-consultation."
+            ),
+        ):
+            resp = await client_provider.patch(f"{API}/{ENC_ID}/status", json={
+                "status": "WITH_PROVIDER",
+            })
+
+        assert resp.status_code == 400
 
 
 # ═══════════════════════════════════════════════════════════════

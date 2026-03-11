@@ -70,6 +70,7 @@ class Encounter(BaseModel):
     ai_triage_model_provider: Mapped[str | None] = mapped_column(String(80), nullable=True)
     ai_triage_model_name: Mapped[str | None] = mapped_column(String(120), nullable=True)
     ai_triage_guardrail_profile: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    triage_assessment: Mapped[list | dict | None] = mapped_column(JSONB, nullable=True)
 
     # Timestamps
     scheduled_at: Mapped[datetime | None] = mapped_column(

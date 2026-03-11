@@ -308,6 +308,21 @@ export function OverviewTab({ encounter, patientProfile, patientBackground }: Pr
               <p className="text-[11px] text-muted-foreground">
                 Generated {formatDt(summary.generated_at)} using {summary.orchestration} ({summary.model_provider}/{summary.model_name})
               </p>
+              {summary.guardrail_profile && (
+                <p className="text-[11px] text-muted-foreground">
+                  Guardrail profile: {summary.guardrail_profile}
+                </p>
+              )}
+              {summary.langsmith_trace_url && (
+                <a
+                  href={summary.langsmith_trace_url}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="text-[11px] text-blue-600 underline"
+                >
+                  Open LangSmith trace
+                </a>
+              )}
             </div>
           ) : (
             <p className="text-sm text-muted-foreground">

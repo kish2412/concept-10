@@ -1,0 +1,47 @@
+{% set t = triage_input if triage_input is defined else (input if input is defined else (payload if payload is defined else {})) %}
+[TRIAGE_INPUT]
+visit_id: {{ t.visit_id }}
+patient_id: {{ t.patient_id }}
+request_id: {{ t.request_id }}
+triage_start_timestamp: {{ t.triage_start_timestamp }}
+
+[PATIENT_CONTEXT]
+age_years: {{ t.patient_context.age_years }}
+sex: {{ t.patient_context.sex }}
+is_pregnant: {{ t.patient_context.is_pregnant }}
+gestational_weeks: {{ t.patient_context.gestational_weeks }}
+mobility_status: {{ t.patient_context.mobility_status }}
+communication_barrier: {{ t.patient_context.communication_barrier }}
+preferred_language: {{ t.patient_context.preferred_language }}
+arrived_by: {{ t.patient_context.arrived_by }}
+known_allergies: {{ t.patient_context.known_allergies }}
+current_medications: {{ t.patient_context.current_medications }}
+relevant_history: {{ t.patient_context.relevant_history }}
+
+[VITALS]
+| metric | value |
+|---|---|
+| temperature_celsius | {{ t.vitals.temperature_celsius }} |
+| heart_rate_bpm | {{ t.vitals.heart_rate_bpm }} |
+| respiratory_rate_rpm | {{ t.vitals.respiratory_rate_rpm }} |
+| systolic_bp_mmhg | {{ t.vitals.systolic_bp_mmhg }} |
+| diastolic_bp_mmhg | {{ t.vitals.diastolic_bp_mmhg }} |
+| spo2_percent | {{ t.vitals.spo2_percent }} |
+| gcs_score | {{ t.vitals.gcs_score }} |
+| pain_score | {{ t.vitals.pain_score }} |
+| weight_kg | {{ t.vitals.weight_kg }} |
+| height_cm | {{ t.vitals.height_cm }} |
+
+[CHIEF_COMPLAINT]
+primary_complaint: {{ t.chief_complaint.primary_complaint }}
+onset_description: {{ t.chief_complaint.onset_description }}
+duration_minutes: {{ t.chief_complaint.duration_minutes }}
+severity: {{ t.chief_complaint.severity }}
+associated_symptoms: {{ t.chief_complaint.associated_symptoms }}
+
+[NURSE_ASSESSMENT]
+nurse_id: {{ t.nurse_notes.nurse_id }}
+assessment_timestamp: {{ t.nurse_notes.assessment_timestamp }}
+nurse_initial_concern: {{ t.nurse_notes.nurse_initial_concern }}
+free_text: {{ t.nurse_notes.free_text }}
+[/TRIAGE_INPUT]

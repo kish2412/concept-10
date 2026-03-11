@@ -18,6 +18,10 @@ class Settings(BaseSettings):
     log_level: str = "INFO"
     tenant_auth_log_success: bool = False
     agentic_enabled: bool = False
+    agentic_service_base_url: str | None = None
+    agentic_service_token: str | None = None
+    agentic_service_role: str = "nurse"
+    agentic_service_timeout_seconds: int = 20
     llm_provider: str = "none"
     llm_model: str = "none"
     openai_api_key: str | None = None

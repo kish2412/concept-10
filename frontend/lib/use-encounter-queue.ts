@@ -9,6 +9,7 @@ import type {
   EncounterListResponse,
   EncounterStatus,
   QueueFilters,
+  TriageAssessment,
   TodaySummary,
 } from "@/types/encounter-queue";
 
@@ -79,11 +80,26 @@ export function useUpdateEncounterStatus() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: async ({ id, status }: { id: string; status: EncounterStatus }) => {
-      const { data } = await api.patch<Encounter>(`/encounters/${id}/status`, { status });
+    mutationFn: async ({
+      id,
+      status,
+      triageAssessment,
+    }: {
+      id: string;
+      status: EncounterStatus;
+      triageAssessment?: TriageAssessment;
+    }) => {
+      const payload: {
+        status: EncounterStatus;
+        triage_assessment?: TriageAssessment;
+      } = { status };
+      if (triageAssessment) {
+        payload.triage_assessment = triageAssessment;
+      }
+      const { data } = await api.patch<Encounter>(`/encounters/${id}/status`, payload);
       return data;
     },
-    onMutate: async ({ id, status }) => {
+    onMutate: async ({ id, status, triageAssessment }) => {
       await queryClient.cancelQueries({ queryKey: ["encounter-queue"] });
       const previous = queryClient.getQueriesData<EncounterListResponse>({
         queryKey: ["encounter-queue"],
@@ -95,7 +111,13 @@ export function useUpdateEncounterStatus() {
           return {
             ...old,
             items: old.items.map((enc) =>
-              enc.id === id ? { ...enc, status } : enc
+              enc.id === id
+                ? {
+                    ...enc,
+                    status,
+                    triage_assessment: triageAssessment ?? enc.triage_assessment,
+                  }
+                : enc
             ),
           };
         }

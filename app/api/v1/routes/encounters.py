@@ -245,6 +245,7 @@ async def generate_triage_summary(
         model_provider=result.model_provider,
         model_name=result.model_name,
         guardrail_profile=result.guardrail_profile,
+        langsmith_trace_url=result.langsmith_trace_url,
     )
 
 
@@ -400,9 +401,12 @@ async def update_encounter_status(
 ) -> EncounterResponse:
     """Transition the encounter to a new status."""
     clinic_uuid = _parse_clinic_uuid(clinic_id)
-    encounter = await svc.update_encounter_status(
-        db=db, clinic_id=clinic_uuid, encounter_id=id, payload=payload,
-    )
+    try:
+        encounter = await svc.update_encounter_status(
+            db=db, clinic_id=clinic_uuid, encounter_id=id, payload=payload,
+        )
+    except svc.EncounterStatusTransitionError as exc:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
     if not encounter:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Encounter not found")
     return encounter

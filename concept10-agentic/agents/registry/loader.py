@@ -39,6 +39,7 @@ class AgentConfig(BaseModel):
     otel_service_name: str
     human_review_required: bool
     max_context_tokens: int = Field(gt=0)
+    metadata: dict[str, Any] = Field(default_factory=dict)
 
     @field_validator("version")
     @classmethod

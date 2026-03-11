@@ -1,0 +1,74 @@
+<rail version="0.1">
+  <output>
+    <object name="triage_summary">
+      <string name="visit_id" />
+      <string name="request_id" />
+      <string name="acuity_level" />
+      <string name="acuity_rationale" />
+      <object name="clinical_summary" />
+      <list name="emergency_flags" />
+      <list name="special_handling_flags" />
+      <boolean name="immediate_action_required" />
+      <boolean name="alert_charge_nurse" />
+      <boolean name="alert_attending_physician" />
+      <string name="suggested_waiting_area" />
+      <string name="summary_generated_at" />
+      <float name="model_confidence" />
+      <string name="disclaimer" validators="DisclaimerPresenceGuard" />
+    </object>
+  </output>
+
+  <instructions>
+    <string>
+      Enforce clinical safety, schema compliance, and conservative uncertainty handling.
+      Output must be valid JSON only.
+    </string>
+  </instructions>
+
+  <prompt>
+    ${prompt}
+  </prompt>
+
+  <input>
+    <validators>
+      <validator name="PIIRedactionValidator">
+        <on-fail>fix</on-fail>
+        <description>
+          Detect and replace patient full name with [PATIENT], MRN/NHS/NIC with [PATIENT_ID],
+          date of birth with [DOB], and phone/email with [CONTACT_REDACTED].
+          Keep visit_id, age_years, and clinical data. Log redaction to audit and tag
+          redacted_fields in state.context.
+        </description>
+      </validator>
+
+      <validator name="PromptInjectionShield">
+        <on-fail>exception</on-fail>
+        <description>
+          Hard-block patterns: ignore previous, new instructions, act as, DAN,
+          jailbreak, pretend you are, forget your role.
+        </description>
+      </validator>
+    </validators>
+  </input>
+
+  <output-guards>
+    <validators>
+      <validator name="OutputSchemaValidator">
+        <on-fail>exception</on-fail>
+        <arg name="schema">core.schemas.domains.triage.TriageSummaryOutput</arg>
+      </validator>
+
+      <validator name="DisclaimerPresenceGuard">
+        <on-fail>exception</on-fail>
+      </validator>
+
+      <validator name="DiagnosisLanguageGuard">
+        <on-fail>noop</on-fail>
+      </validator>
+
+      <validator name="ConfidenceRangeGuard">
+        <on-fail>exception</on-fail>
+      </validator>
+    </validators>
+  </output-guards>
+</rail>

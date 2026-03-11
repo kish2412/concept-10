@@ -6,6 +6,18 @@ export type PatientSummary = {
   last_name: string;
 };
 
+export type TriageAssessment = {
+  acuity: "RESUSCITATION" | "EMERGENT" | "URGENT" | "LESS_URGENT" | "NON_URGENT";
+  presenting_symptoms: string[];
+  symptom_onset: string | null;
+  pain_score: number | null;
+  red_flags: string[];
+  isolation_required: boolean;
+  mobility_status: string | null;
+  allergies_verified: boolean;
+  triage_notes: string;
+};
+
 export type Encounter = {
   id: string;
   clinic_id: string;
@@ -17,6 +29,7 @@ export type Encounter = {
   encounter_type: EncounterType;
   status: EncounterStatus;
   chief_complaint: string | null;
+  triage_assessment: TriageAssessment | null;
   scheduled_at: string | null;
   checked_in_at: string | null;
   triage_at: string | null;

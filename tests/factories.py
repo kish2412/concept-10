@@ -25,6 +25,11 @@ _CLINIC_ID = uuid.UUID("aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa")
 _PATIENT_ID = uuid.UUID("bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb")
 _PROVIDER_ID = uuid.UUID("cccccccc-cccc-cccc-cccc-cccccccccccc")
 
+# Backward-compatible exports used by legacy tests.
+CLINIC_ID = _CLINIC_ID
+PATIENT_ID = _PATIENT_ID
+PROVIDER_ID = _PROVIDER_ID
+
 
 def _now() -> datetime:
     return datetime.now(timezone.utc)
@@ -54,6 +59,7 @@ def create_mock_encounter(**overrides) -> Encounter:
         ai_triage_model_provider=None,
         ai_triage_model_name=None,
         ai_triage_guardrail_profile=None,
+        triage_assessment=None,
         scheduled_at=_now(),
         checked_in_at=None,
         triage_at=None,
@@ -68,25 +74,25 @@ def create_mock_encounter(**overrides) -> Encounter:
     )
     defaults.update(overrides)
 
-    enc = Encounter.__new__(Encounter)
+    enc = Encounter()
     for k, v in defaults.items():
-        object.__setattr__(enc, k, v)
+        setattr(enc, k, v)
 
     # Attach default nested children unless explicitly overridden
     if "vitals" not in overrides:
-        object.__setattr__(enc, "vitals", [create_mock_vitals(encounter_id=defaults["id"])])
+        setattr(enc, "vitals", [create_mock_vitals(encounter_id=defaults["id"])])
     if "notes" not in overrides:
-        object.__setattr__(enc, "notes", [create_mock_note(encounter_id=defaults["id"])])
+        setattr(enc, "notes", [create_mock_note(encounter_id=defaults["id"])])
     if "diagnoses" not in overrides:
-        object.__setattr__(enc, "diagnoses", [create_mock_diagnosis(encounter_id=defaults["id"])])
+        setattr(enc, "diagnoses", [create_mock_diagnosis(encounter_id=defaults["id"])])
     if "orders" not in overrides:
-        object.__setattr__(enc, "orders", [create_mock_order(encounter_id=defaults["id"])])
+        setattr(enc, "orders", [create_mock_order(encounter_id=defaults["id"])])
     if "medications" not in overrides:
-        object.__setattr__(enc, "medications", [create_mock_medication(encounter_id=defaults["id"])])
+        setattr(enc, "medications", [create_mock_medication(encounter_id=defaults["id"])])
     if "disposition" not in overrides:
-        object.__setattr__(enc, "disposition", None)
+        setattr(enc, "disposition", None)
     if "patient" not in overrides:
-        object.__setattr__(enc, "patient", None)
+        setattr(enc, "patient", None)
 
     return enc
 
@@ -115,9 +121,9 @@ def create_mock_vitals(**overrides) -> EncounterVitals:
         updated_at=_now(),
     )
     defaults.update(overrides)
-    obj = EncounterVitals.__new__(EncounterVitals)
+    obj = EncounterVitals()
     for k, v in defaults.items():
-        object.__setattr__(obj, k, v)
+        setattr(obj, k, v)
     return obj
 
 
@@ -141,9 +147,9 @@ def create_mock_note(**overrides) -> EncounterNote:
         updated_at=_now(),
     )
     defaults.update(overrides)
-    obj = EncounterNote.__new__(EncounterNote)
+    obj = EncounterNote()
     for k, v in defaults.items():
-        object.__setattr__(obj, k, v)
+        setattr(obj, k, v)
     return obj
 
 
@@ -163,9 +169,9 @@ def create_mock_diagnosis(**overrides) -> EncounterDiagnosis:
         updated_at=_now(),
     )
     defaults.update(overrides)
-    obj = EncounterDiagnosis.__new__(EncounterDiagnosis)
+    obj = EncounterDiagnosis()
     for k, v in defaults.items():
-        object.__setattr__(obj, k, v)
+        setattr(obj, k, v)
     return obj
 
 
@@ -187,9 +193,9 @@ def create_mock_order(**overrides) -> EncounterOrder:
         updated_at=_now(),
     )
     defaults.update(overrides)
-    obj = EncounterOrder.__new__(EncounterOrder)
+    obj = EncounterOrder()
     for k, v in defaults.items():
-        object.__setattr__(obj, k, v)
+        setattr(obj, k, v)
     return obj
 
 
@@ -216,9 +222,9 @@ def create_mock_medication(**overrides) -> EncounterMedication:
         updated_at=_now(),
     )
     defaults.update(overrides)
-    obj = EncounterMedication.__new__(EncounterMedication)
+    obj = EncounterMedication()
     for k, v in defaults.items():
-        object.__setattr__(obj, k, v)
+        setattr(obj, k, v)
     return obj
 
 
@@ -241,9 +247,9 @@ def create_mock_disposition(**overrides) -> EncounterDisposition:
         updated_at=_now(),
     )
     defaults.update(overrides)
-    obj = EncounterDisposition.__new__(EncounterDisposition)
+    obj = EncounterDisposition()
     for k, v in defaults.items():
-        object.__setattr__(obj, k, v)
+        setattr(obj, k, v)
     return obj
 
 
@@ -272,6 +278,7 @@ def create_mock_encounter_dict(**overrides) -> dict:
         ai_triage_model_provider=None,
         ai_triage_model_name=None,
         ai_triage_guardrail_profile=None,
+        triage_assessment=None,
         scheduled_at=_now().isoformat(),
         checked_in_at=None,
         triage_at=None,

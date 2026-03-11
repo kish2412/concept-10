@@ -96,3 +96,35 @@ agents:
     otel_service_name: agent.underwriter.human.review
     human_review_required: true
     max_context_tokens: 5000
+
+  - id: triage-summary-agent
+    category: specialist
+    version: 1.0.0
+    description: >
+      Analyses structured triage data captured by nursing staff.
+      Produces a clinical summary, assigns an ESI-aligned acuity tier,
+      and raises typed emergency / special-handling flags for clinician review.
+    prompt_template: agents/specialist/triage/triage_summary.j2
+    input_schema: core.schemas.domains.triage.TriageInput
+    output_schema: core.schemas.domains.triage.TriageSummaryOutput
+    tools: []
+    governance_profile: agents/specialist/triage/triage_summary.rail
+    langsmith_project: concept10-triage-agents
+    otel_service_name: otel-triage-summary-agent
+    human_review_required: true
+    max_context_tokens: 4096
+    tags: [outpatient, triage, emergency, clinical, concept10]
+    metadata:
+      clinical_classification: ESI-5-tier
+      acuity_levels: [IMMEDIATE, EMERGENT, URGENT, LESS_URGENT, NON_URGENT]
+      emergency_escalation_sla_seconds: 60
+      special_handling_codes:
+        - FALL_RISK
+        - BARIATRIC
+        - ISOLATION_REQUIRED
+        - COGNITIVE_IMPAIRMENT
+        - INTERPRETER_REQUIRED
+        - PAEDIATRIC
+        - OBSTETRIC
+        - PSYCHIATRIC
+        - VIOLENCE_RISK

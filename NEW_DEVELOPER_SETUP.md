@@ -60,6 +60,10 @@ Edit `.env` with your local values:
 - `DATABASE_URL=postgresql+asyncpg://<user>:<password>@localhost:5432/clinic_saas`
 - `SECRET_KEY=<long-random-secret>`
 - `FRONTEND_ORIGINS=http://localhost:3000,http://127.0.0.1:3000`
+- `AGENTIC_ENABLED=true`
+- `AGENTIC_SERVICE_BASE_URL=http://localhost:8001`
+- `AGENTIC_SERVICE_TOKEN=<same-token-used-by-concept10-agentic-checks>`
+- `AGENTIC_SERVICE_ROLE=nurse`
 
 ### Create local PostgreSQL database
 
@@ -136,6 +140,29 @@ Set-Location "<path-to>\Concept 10 - New Project\frontend"
 npm.cmd run dev
 ```
 
+### Terminal C (concept10-agentic backend)
+
+```powershell
+Set-Location "<path-to>\Concept 10 - New Project\concept10-agentic"
+python -m venv .venv
+.\.venv\Scripts\Activate.ps1
+pip install -e ".[core,dev,observability,governance]"
+Copy-Item .env.example .env
+uvicorn api.app:app --reload --host 0.0.0.0 --port 8001
+```
+
+Agentic backend URL: `http://localhost:8001`
+
+### Terminal D (agent orchestration dashboard)
+
+```powershell
+Set-Location "<path-to>\Concept 10 - New Project\concept10-agentic\dashboard"
+npm.cmd install
+npm.cmd run dev
+```
+
+Dashboard URL: `http://localhost:5173`
+
 ---
 
 ## 6) Troubleshooting (Windows)
@@ -183,9 +210,14 @@ Or continue using `npm.cmd`.
 
 - Backend starts at `http://localhost:8000`
 - Frontend starts at `http://localhost:3000`
+- Agentic backend starts at `http://localhost:8001`
+- Agent dashboard starts at `http://localhost:5173`
 - Clerk sign-in page opens
 - After sign-in + org selection, dashboard routes load:
   - `/patients`
   - `/encounters`
   - `/medications`
   - `/settings`
+- In OMS encounter detail, AI triage summary generation succeeds and returns orchestration metadata.
+- When `X-LangSmith-URL` is present in triage response, the encounter page shows an "Open LangSmith trace" link.
+- Guardrail profile appears in triage summary metadata.

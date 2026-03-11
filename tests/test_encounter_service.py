@@ -174,11 +174,38 @@ class TestUpdateEncounterStatus:
         mock_result.scalar_one_or_none.return_value = enc
         mock_db.execute.return_value = mock_result
 
-        payload = StatusUpdate(status="WITH_PROVIDER")
+        payload = StatusUpdate(
+            status="WITH_PROVIDER",
+            triage_assessment={
+                "acuity": "URGENT",
+                "presenting_symptoms": ["headache"],
+                "symptom_onset": "2 days",
+                "pain_score": 6,
+                "red_flags": [],
+                "isolation_required": False,
+                "mobility_status": "ambulatory",
+                "allergies_verified": True,
+                "triage_notes": "Needs provider review after vitals and symptom screening.",
+            },
+        )
         result = await svc.update_encounter_status(
             db=mock_db, clinic_id=CLINIC_ID, encounter_id=enc.id, payload=payload,
         )
         assert result.status == "WITH_PROVIDER"
+        assert result.triage_assessment is not None
+
+    async def test_requires_triage_assessment_for_with_provider(self, mock_db: AsyncMock):
+        enc = create_mock_encounter(status="TRIAGE", triage_assessment=None)
+        mock_result = MagicMock()
+        mock_result.scalar_one_or_none.return_value = enc
+        mock_db.execute.return_value = mock_result
+
+        payload = StatusUpdate(status="WITH_PROVIDER")
+
+        with pytest.raises(svc.EncounterStatusTransitionError):
+            await svc.update_encounter_status(
+                db=mock_db, clinic_id=CLINIC_ID, encounter_id=enc.id, payload=payload,
+            )
 
     async def test_returns_none_when_missing(self, mock_db: AsyncMock):
         mock_result = MagicMock()
