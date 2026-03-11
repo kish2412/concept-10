@@ -25,7 +25,7 @@ COPY observability ./observability
 RUN pip install --upgrade pip \
     && pip install -e ".[core,observability,governance]"
 
-FROM gcr.io/distroless/python3-debian12:nonroot AS runtime
+FROM python:3.11-slim AS runtime
 
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
@@ -33,17 +33,19 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
 
 WORKDIR /app
 
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends curl ca-certificates \
+    && rm -rf /var/lib/apt/lists/*
+
 COPY --from=builder /opt/venv /opt/venv
 COPY --from=builder /app /app
-COPY --from=builder /usr/bin/curl /usr/bin/curl
-COPY --from=builder /usr/lib/x86_64-linux-gnu /usr/lib/x86_64-linux-gnu
-COPY --from=builder /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/ca-certificates.crt
 
-USER nonroot:nonroot
+RUN useradd -m appuser
+USER appuser
 
 EXPOSE 8000
 
 HEALTHCHECK --interval=30s --timeout=5s --start-period=20s --retries=3 \
   CMD ["/usr/bin/curl", "-fsS", "http://127.0.0.1:8000/health"]
 
-ENTRYPOINT ["/opt/venv/bin/uvicorn", "api.app:app", "--host", "0.0.0.0", "--port", "8000"]
+ENTRYPOINT ["python", "-m", "uvicorn", "api.app:app", "--host", "0.0.0.0", "--port", "8000"]
