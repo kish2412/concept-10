@@ -565,7 +565,7 @@ async def finalise_node(state: TriageOrchestrationState) -> TriageOrchestrationS
 
 @agent_span("triage.error")
 async def error_node(state: TriageOrchestrationState) -> TriageOrchestrationState:
-        print("ERROR_NODE_REACHED")
+    print("ERROR_NODE_REACHED")
     started_at_raw = str(state.get("context", {}).get("started_at_utc", _now_iso()))
     try:
         started_at = datetime.fromisoformat(started_at_raw)

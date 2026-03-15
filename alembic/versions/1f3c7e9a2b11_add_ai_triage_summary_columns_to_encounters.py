@@ -19,24 +19,10 @@ depends_on: Union[str, Sequence[str], None] = None
 
 
 def upgrade() -> None:
-    op.add_column("encounters", sa.Column("ai_triage_summary", sa.Text(), nullable=True))
-    op.add_column("encounters", sa.Column("ai_triage_focus_points", postgresql.JSONB(astext_type=sa.Text()), nullable=True))
-    op.add_column("encounters", sa.Column("ai_triage_red_flags", postgresql.JSONB(astext_type=sa.Text()), nullable=True))
-    op.add_column("encounters", sa.Column("ai_triage_missing_information", postgresql.JSONB(astext_type=sa.Text()), nullable=True))
-    op.add_column("encounters", sa.Column("ai_triage_generated_at", sa.DateTime(timezone=True), nullable=True))
-    op.add_column("encounters", sa.Column("ai_triage_orchestration", sa.String(length=120), nullable=True))
-    op.add_column("encounters", sa.Column("ai_triage_model_provider", sa.String(length=80), nullable=True))
-    op.add_column("encounters", sa.Column("ai_triage_model_name", sa.String(length=120), nullable=True))
-    op.add_column("encounters", sa.Column("ai_triage_guardrail_profile", sa.String(length=100), nullable=True))
+    # AI-related columns removed. No longer added to encounters table.
 
 
 def downgrade() -> None:
-    op.drop_column("encounters", "ai_triage_guardrail_profile")
-    op.drop_column("encounters", "ai_triage_model_name")
-    op.drop_column("encounters", "ai_triage_model_provider")
-    op.drop_column("encounters", "ai_triage_orchestration")
-    op.drop_column("encounters", "ai_triage_generated_at")
-    op.drop_column("encounters", "ai_triage_missing_information")
-    op.drop_column("encounters", "ai_triage_red_flags")
+    # AI-related columns removed. No longer dropped from encounters table.
     op.drop_column("encounters", "ai_triage_focus_points")
     op.drop_column("encounters", "ai_triage_summary")

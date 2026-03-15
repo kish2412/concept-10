@@ -60,16 +60,7 @@ class Encounter(BaseModel):
 
     chief_complaint: Mapped[str | None] = mapped_column(Text, nullable=True)
 
-    # Persisted AI triage summary payload (latest generation)
-    ai_triage_summary: Mapped[str | None] = mapped_column(Text, nullable=True)
-    ai_triage_focus_points: Mapped[list | dict | None] = mapped_column(JSONB, nullable=True)
-    ai_triage_red_flags: Mapped[list | dict | None] = mapped_column(JSONB, nullable=True)
-    ai_triage_missing_information: Mapped[list | dict | None] = mapped_column(JSONB, nullable=True)
-    ai_triage_generated_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
-    ai_triage_orchestration: Mapped[str | None] = mapped_column(String(120), nullable=True)
-    ai_triage_model_provider: Mapped[str | None] = mapped_column(String(80), nullable=True)
-    ai_triage_model_name: Mapped[str | None] = mapped_column(String(120), nullable=True)
-    ai_triage_guardrail_profile: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    # ...existing code...
     triage_assessment: Mapped[list | dict | None] = mapped_column(JSONB, nullable=True)
 
     # Timestamps
