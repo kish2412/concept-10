@@ -27,6 +27,16 @@ class GraphBuilder:
         self.registry = registry
 
     def build_for_agent(self, agent_config: AgentConfig) -> CompiledGraph:
+        # Use specialized graph for triage agent
+        if agent_config.id == "triage-summary-agent":
+            try:
+                from agents.specialist.triage.graph import build_triage_graph
+                return build_triage_graph()
+            except Exception as e:
+                import logging
+                logger = logging.getLogger(__name__)
+                logger.warning(f"Failed to build triage-specific graph: {e}. Falling back to generic graph.", exc_info=True)
+        
         graph = StateGraph(OrchestrationState)
 
         llm_node = self._wrap_with_telemetry("llm_call", make_llm_node(agent_config))

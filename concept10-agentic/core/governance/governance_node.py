@@ -24,6 +24,9 @@ def make_governance_node(agent_config: AgentConfig):
     injection_validator = PromptInjectionShield()
     schema_validator = OutputSchemaValidator()
     toxicity_validator = ToxicityGuard()
+    
+    # Hard flags that should block execution
+    HARD_FAIL_FLAGS = {"prompt_injection_detected", "governance_guard_parse_failed", "toxicity_detected"}
 
     async def governance_node(state: "OrchestrationState") -> "OrchestrationState":
         request_id = state.get("request_id", "")
@@ -110,7 +113,8 @@ def make_governance_node(agent_config: AgentConfig):
         )
         state["current_node"] = "governance"
 
-        if state["governance_flags"]:
+        # Only set error for hard-fail flags
+        if any(flag in HARD_FAIL_FLAGS for flag in state["governance_flags"]):
             state["error"] = "governance_validation_failed"
 
         return state

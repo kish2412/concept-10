@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any, Awaitable, Callable
@@ -8,6 +9,8 @@ from agents.registry.loader import AgentConfig
 from core.governance.governance_node import make_governance_node as make_guardrail_governance_node
 from core.graph.state import OrchestrationState
 from core.prompts.template_loader import PromptLoader
+
+logger = logging.getLogger(__name__)
 
 
 async def _resolve_maybe_async(value: Any) -> Any:
@@ -33,7 +36,33 @@ def make_llm_node(agent_config: AgentConfig) -> Callable[[OrchestrationState], A
         if callable(llm_callable):
             llm_result = await _resolve_maybe_async(llm_callable(prompt=prompt, state=state))
         else:
-            llm_result = {"response": prompt[:800]}
+            # Create LLM callable from configuration
+            try:
+                import os
+                from langchain_openai import ChatOpenAI
+                from langchain_core.output_parsers import JsonOutputParser
+                from langchain_core.messages import SystemMessage
+
+                api_key = os.getenv("OPENAI_API_KEY")
+                model_name = os.getenv("DEFAULT_AGENT_MODEL", "gpt-4o")
+
+                if not api_key:
+                    logger.warning("OPENAI_API_KEY not configured, returning fallback response")
+                    llm_result = {"response": prompt[:800]}
+                else:
+                    llm = ChatOpenAI(api_key=api_key, model=model_name, temperature=0.7)
+                    parser = JsonOutputParser()
+                    chain = llm | parser
+
+                    try:
+                        # Pass a list of BaseMessages (SystemMessage) instead of a dict
+                        llm_result = await chain.ainvoke([SystemMessage(content=prompt)])
+                    except Exception as llm_err:
+                        logger.error(f"LLM call failed: {llm_err}", exc_info=True)
+                        llm_result = {"response": "LLM call failed"}
+            except ImportError:
+                logger.warning("langchain_openai not available, returning fallback response")
+                llm_result = {"response": prompt[:800]}
 
         state.setdefault("tool_results", {})["llm_call"] = llm_result
         state.setdefault("trace_steps", []).append(

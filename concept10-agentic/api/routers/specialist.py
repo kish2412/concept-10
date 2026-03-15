@@ -5,6 +5,8 @@ import json
 from datetime import UTC, datetime
 from typing import Any
 
+import logging
+
 from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, ValidationError
@@ -16,6 +18,8 @@ from core.schemas.base import AgentError, AgentRequest, AgentResponse, AgentStat
 from core.schemas.domains.triage import TriageInput, TriageSummaryOutput
 from observability.spans import get_trace_id
 from observability.tracking import RequestTracker
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
@@ -79,17 +83,56 @@ def _require_triage_access(request: Request) -> None:
 
 def _coerce_triage_output(response: AgentResponse) -> TriageSummaryOutput:
     payload = response.output
+    
+    # Log the payload structure for debugging
+    logger.debug(f"Coercing triage output. Payload type: {type(payload)}, keys: {payload.keys() if isinstance(payload, dict) else 'N/A'}")
+    if isinstance(payload, dict):
+        print(f"PAYLOAD_DEBUG: Top level keys: {list(payload.keys())}")
+        if "agent_response" in payload:
+            print(f"PAYLOAD_DEBUG: agent_response type: {type(payload['agent_response'])}")
+            if isinstance(payload["agent_response"], dict):
+                print(f"PAYLOAD_DEBUG: agent_response keys: {list(payload['agent_response'].keys())}")
+                agent_resp = payload["agent_response"]
+                if "output" in agent_resp:
+                    print(f"PAYLOAD_DEBUG: agent_response.output keys: {list(agent_resp['output'].keys())}")
+                    print(f"PAYLOAD_DEBUG: clinical_summary content: {agent_resp['output'].get('clinical_summary')}")
+    
+    # Try extracting from nested agent_response structure
     if isinstance(payload, dict) and "agent_response" in payload and isinstance(payload["agent_response"], dict):
         agent_response_payload = payload["agent_response"]
         output_payload = agent_response_payload.get("output", {})
+        logger.debug(f"Extracted from agent_response.output: {type(output_payload)}")
+        print(f"PAYLOAD_DEBUG: Attempting to validate from agent_response.output")
         return TriageSummaryOutput.model_validate(output_payload)
 
+    # Try extracting from output field
     if isinstance(payload, dict) and "output" in payload and isinstance(payload["output"], dict):
+        logger.debug(f"Extracted from payload.output: {type(payload['output'])}")
         return TriageSummaryOutput.model_validate(payload["output"])
 
+    # Try extracting from llm_output field (when wrapped by final_output_node)
+    if isinstance(payload, dict) and "llm_output" in payload and isinstance(payload["llm_output"], dict):
+        logger.debug(f"Extracted from payload.llm_output: {type(payload['llm_output'])}")
+        return TriageSummaryOutput.model_validate(payload["llm_output"])
+    
+    # Try extracting from content field (if it's a string response wrapped in content)
+    if isinstance(payload, dict) and "content" in payload:
+        logger.debug(f"Found content field: {type(payload['content'])}")
+        if isinstance(payload["content"], str):
+            import json
+            try:
+                content_dict = json.loads(payload["content"])
+                logger.debug(f"Parsed content as JSON: {type(content_dict)}")
+                return TriageSummaryOutput.model_validate(content_dict)
+            except (json.JSONDecodeError, ValueError) as e:
+                logger.debug(f"Failed to parse content as JSON: {e}")
+
+    # Try validating the entire payload directly
     if isinstance(payload, dict):
+        logger.debug(f"Attempting direct validation of entire payload")
         return TriageSummaryOutput.model_validate(payload)
 
+    logger.error(f"Unable to coerce output. Payload: {payload}")
     raise ValidationError.from_exception_data(
         "TriageSummaryOutput",
         [{"type": "model_type", "loc": ("output",), "msg": "Invalid triage output payload", "input": payload}],
@@ -212,7 +255,14 @@ async def summarise_triage(
         }
         TRIAGE_REQUESTS[request_id] = agent_request
 
-    result = await executor.execute(agent_request)
+    try:
+        result = await executor.execute(agent_request)
+    except Exception as e:
+        logger.error(f"Error executing triage agent: {type(e).__name__}: {str(e)}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error executing triage agent: {str(e)}"
+        )
     trace_id = get_trace_id()
     response.headers["X-Request-ID"] = request_id
     response.headers["X-Trace-ID"] = trace_id
