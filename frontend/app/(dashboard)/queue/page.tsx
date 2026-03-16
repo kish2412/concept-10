@@ -109,7 +109,7 @@ export default function QueueDashboardPage() {
 
   // ── Render ──
   return (
-    <div className="-m-4 md:-m-6 flex h-[calc(100vh-0px)] flex-col">
+    <div className="flex h-full min-h-0 flex-col overflow-hidden rounded-lg border bg-background">
       {/* Top stats bar */}
       <QueueStatsBar
         summary={summary}
@@ -124,10 +124,10 @@ export default function QueueDashboardPage() {
       />
 
       {/* Body: sidebar + main */}
-      <div className="flex flex-1 overflow-hidden">
+      <div className="relative flex min-h-0 flex-1 overflow-hidden">
         <QueueFilterPanel filters={filters} onChange={setFilters} open={filtersOpen} />
 
-        <div className="flex-1 overflow-auto">
+        <div className="min-h-0 flex-1 overflow-auto">
           {viewMode === "kanban" ? (
             <KanbanBoard
               encounters={encounters}

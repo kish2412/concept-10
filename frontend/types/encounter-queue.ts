@@ -177,6 +177,7 @@ export type EncounterStatus = (typeof ENCOUNTER_STATUSES)[number];
 
 /** Statuses shown as kanban columns (active workflow stages). */
 export const QUEUE_STATUSES: EncounterStatus[] = [
+  "SCHEDULED",
   "CHECKED_IN",
   "TRIAGE",
   "WITH_PROVIDER",
@@ -218,6 +219,7 @@ export const TYPE_LABEL: Record<string, string> = {
 
 /** Next status in the standard workflow. */
 export const NEXT_STATUS: Partial<Record<EncounterStatus, EncounterStatus>> = {
+  SCHEDULED: "CHECKED_IN",
   CHECKED_IN: "TRIAGE",
   TRIAGE: "WITH_PROVIDER",
   WITH_PROVIDER: "PENDING_RESULTS",

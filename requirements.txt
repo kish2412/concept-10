@@ -12,3 +12,4 @@ python-multipart==0.0.20
 email-validator==2.2.0
 openai==1.64.0
 httpx==0.28.1
+svix==1.24.0

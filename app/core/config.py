@@ -1,5 +1,5 @@
+"""app/core/config.py"""
 from functools import lru_cache
-
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -12,11 +12,25 @@ class Settings(BaseSettings):
 
     database_url: str
 
+    # ── Own JWT (for local dev login / admin bootstrap) ────────────────
     secret_key: str = "change_me"
     algorithm: str = "HS256"
     access_token_expire_minutes: int = 60
+
+    # ── Clerk ──────────────────────────────────────────────────────────
+    # From Clerk dashboard → API Keys
+    clerk_secret_key: str | None = None
+    # From Clerk dashboard → API Keys → Advanced → JWKS Endpoint
+    # e.g. https://smiling-panda-12.clerk.accounts.dev/.well-known/jwks.json
+    clerk_jwks_url: str | None = None
+    # From Clerk dashboard → Webhooks → endpoint → Signing Secret
+    clerk_webhook_secret: str | None = None
+
+    # ── Logging ────────────────────────────────────────────────────────
     log_level: str = "INFO"
     tenant_auth_log_success: bool = False
+
+    # ── Agentic ────────────────────────────────────────────────────────
     agentic_enabled: bool = False
     agentic_service_base_url: str | None = None
     agentic_service_token: str | None = None

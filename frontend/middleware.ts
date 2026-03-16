@@ -1,36 +1,26 @@
+/** Route protection is delegated to Clerk; clinic onboarding is handled client-side. */
 import { clerkMiddleware, createRouteMatcher } from "@clerk/nextjs/server";
 import { NextResponse } from "next/server";
 
-const isDashboardRoute = createRouteMatcher([
+const isProtected = createRouteMatcher([
   "/patients(.*)",
   "/encounters(.*)",
   "/medications(.*)",
   "/settings(.*)",
   "/queue(.*)",
+  "/admin(.*)",
 ]);
-const isSelectClinicRoute = createRouteMatcher(["/select-clinic(.*)"]);
+
+const isSelectClinic = createRouteMatcher(["/select-clinic(.*)"]);
 
 export default clerkMiddleware(async (auth, req) => {
-  const { userId, orgId } = await auth();
+  if (isProtected(req) || isSelectClinic(req)) {
+    await auth.protect();
+  }
 
+  const { userId } = await auth();
   if (req.nextUrl.pathname === "/" && userId) {
-    const destination = orgId ? "/patients" : "/select-clinic";
-    return NextResponse.redirect(new URL(destination, req.url));
-  }
-
-  if (isSelectClinicRoute(req)) {
-    await auth.protect();
-    if (orgId) {
-      return NextResponse.redirect(new URL("/patients", req.url));
-    }
-    return;
-  }
-
-  if (isDashboardRoute(req)) {
-    await auth.protect();
-    if (!orgId) {
-      return NextResponse.redirect(new URL("/select-clinic", req.url));
-    }
+    return NextResponse.redirect(new URL("/patients", req.url));
   }
 });
 

@@ -551,10 +551,6 @@ async def get_encounter_queue(
     queue_date: date | None = None,
     provider_id: uuid.UUID | None = None,
 ) -> tuple[list[Encounter], int]:
-    target_date = queue_date or date.today()
-    day_start = datetime.combine(target_date, time.min, tzinfo=timezone.utc)
-    day_end = datetime.combine(target_date, time.max, tzinfo=timezone.utc)
-
     filters = [
         Encounter.clinic_id == clinic_id,
         Encounter.is_deleted.is_(False),
@@ -562,13 +558,17 @@ async def get_encounter_queue(
         Encounter.status.notin_(["DISCHARGED", "CANCELLED", "NO_SHOW"]) if not status else Encounter.status == status,
     ]
 
-    # Scope to date via scheduled_at or created_at
-    filters.append(
-        or_(
-            and_(Encounter.scheduled_at >= day_start, Encounter.scheduled_at <= day_end),
-            and_(Encounter.scheduled_at.is_(None), Encounter.created_at >= day_start, Encounter.created_at <= day_end),
+    if queue_date:
+        day_start = datetime.combine(queue_date, time.min, tzinfo=timezone.utc)
+        day_end = datetime.combine(queue_date, time.max, tzinfo=timezone.utc)
+
+        # Only apply date scoping when explicitly requested.
+        filters.append(
+            or_(
+                and_(Encounter.scheduled_at >= day_start, Encounter.scheduled_at <= day_end),
+                and_(Encounter.scheduled_at.is_(None), Encounter.created_at >= day_start, Encounter.created_at <= day_end),
+            )
         )
-    )
 
     if department_id:
         filters.append(Encounter.department_id == department_id)

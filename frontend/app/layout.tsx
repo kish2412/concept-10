@@ -3,10 +3,11 @@ import { ClerkProvider } from "@clerk/nextjs";
 
 import "./globals.css";
 import { Providers } from "@/lib/providers";
+import { PermissionProvider } from "@/lib/permission-context";
 
 export const metadata: Metadata = {
   title: "Concept 10 Dashboard",
-  description: "Multi-tenant clinic frontend",
+  description: "Multi-tenant clinic management",
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
@@ -14,7 +15,11 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
     <ClerkProvider>
       <html lang="en" suppressHydrationWarning>
         <body suppressHydrationWarning>
-          <Providers>{children}</Providers>
+          <Providers>
+            <PermissionProvider>
+              {children}
+            </PermissionProvider>
+          </Providers>
         </body>
       </html>
     </ClerkProvider>

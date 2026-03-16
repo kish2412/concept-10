@@ -1,48 +1,43 @@
 "use client";
 
+/** Axios client configured with Clerk auth and clinic context. */
+
 import axios from "axios";
 import { useAuth } from "@clerk/nextjs";
-import { useEffect } from "react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { usePermission } from "@/lib/permission-context";
 
 export const api = axios.create({
   baseURL: process.env.NEXT_PUBLIC_API_BASE_URL,
 });
 
 export function useApiClient() {
-  const { getToken, orgId, userId, isLoaded } = useAuth();
-  const [isInterceptorReady, setIsInterceptorReady] = useState(false);
-  const isReady = isLoaded && Boolean(userId) && Boolean(orgId) && isInterceptorReady;
+  const { getToken, isLoaded: clerkLoaded } = useAuth();
+  const { clinicId, isAuthenticated } = usePermission();
+  const [ready, setReady] = useState(false);
+
+  const isReady = clerkLoaded && isAuthenticated && Boolean(clinicId) && ready;
 
   useEffect(() => {
-    setIsInterceptorReady(false);
+    setReady(false);
 
-    const interceptor = api.interceptors.request.use(async (config) => {
+    const id = api.interceptors.request.use(async (config) => {
       const token = await getToken();
-
-      if (token) {
-        config.headers.Authorization = `Bearer ${token}`;
+      if (token) config.headers.Authorization = `Bearer ${token}`;
+      if (clinicId) {
+        config.headers["x-clinic-id"] = clinicId;
+        config.headers["clinic_id"] = clinicId;
       }
-
-      if (orgId) {
-        config.headers["clinic_id"] = orgId;
-        config.headers["x-clinic-id"] = orgId;
-      }
-
-      if (userId) {
-        config.headers["x-user-id"] = userId;
-      }
-
       return config;
     });
 
-    setIsInterceptorReady(true);
+    setReady(true);
 
     return () => {
-      api.interceptors.request.eject(interceptor);
-      setIsInterceptorReady(false);
+      api.interceptors.request.eject(id);
+      setReady(false);
     };
-  }, [getToken, orgId, userId]);
+  }, [getToken, clinicId]);
 
   return { api, isReady };
 }

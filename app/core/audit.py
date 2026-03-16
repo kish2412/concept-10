@@ -7,12 +7,12 @@ from datetime import datetime, timezone
 
 from fastapi import Depends, Request
 
-from app.api.deps import get_current_user_id
+from app.api.deps import get_user_id
 
 logger = logging.getLogger("app.audit")
 
 
-async def audit_log(request: Request, user_id: str = Depends(get_current_user_id)) -> None:
+async def audit_log(request: Request, user_id: str = Depends(get_user_id)) -> None:
     """
     Log every mutating request (POST / PUT / PATCH / DELETE) with
     user id, action, timestamp, and a SHA-256 hash of the payload.

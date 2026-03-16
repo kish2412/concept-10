@@ -1,3 +1,9 @@
+"""
+alembic/env.py
+──────────────
+Updated to import all new models so Alembic sees them for autogenerate.
+Replace your existing alembic/env.py with this file.
+"""
 from __future__ import annotations
 
 from logging.config import fileConfig
@@ -9,10 +15,26 @@ from sqlalchemy.ext.asyncio import async_engine_from_config
 
 from app.core.config import settings
 from app.models.base import Base
-from app.models.clinic import Clinic
-from app.models.patient import Patient
-from app.models.patient_background import PatientBackground
-from app.models.user import User
+
+# ── Import ALL models so Alembic can see them ─────────────────────────
+from app.models.clinic import Clinic                        # noqa: F401
+from app.models.user import User                            # noqa: F401
+from app.models.patient import Patient                      # noqa: F401
+from app.models.patient_background import PatientBackground # noqa: F401
+from app.models.encounter import (                          # noqa: F401
+    Encounter, EncounterVitals, EncounterNote,
+    EncounterDiagnosis, EncounterOrder,
+    EncounterMedication, EncounterDisposition,
+)
+from app.models.rbac import (                               # noqa: F401
+    Permission, RolePermission,
+    CustomRole, CustomRolePermission, UserCustomRoleAssignment,
+)
+from app.models.visit_flow import (                         # noqa: F401
+    VisitFlowConfig, VisitStateConfig, VisitTransitionRule,
+)
+
+# ─────────────────────────────────────────────────────────────────────
 
 config = context.config
 config.set_main_option("sqlalchemy.url", settings.database_url)
@@ -32,14 +54,16 @@ def run_migrations_offline() -> None:
         compare_type=True,
         dialect_opts={"paramstyle": "named"},
     )
-
     with context.begin_transaction():
         context.run_migrations()
 
 
 def do_run_migrations(connection: Connection) -> None:
-    context.configure(connection=connection, target_metadata=target_metadata, compare_type=True)
-
+    context.configure(
+        connection=connection,
+        target_metadata=target_metadata,
+        compare_type=True,
+    )
     with context.begin_transaction():
         context.run_migrations()
 
@@ -50,10 +74,8 @@ async def run_migrations_online() -> None:
         prefix="sqlalchemy.",
         poolclass=pool.NullPool,
     )
-
     async with connectable.connect() as connection:
         await connection.run_sync(do_run_migrations)
-
     await connectable.dispose()
 
 
@@ -61,5 +83,4 @@ if context.is_offline_mode():
     run_migrations_offline()
 else:
     import asyncio
-
     asyncio.run(run_migrations_online())

@@ -1,7 +1,8 @@
 from fastapi import APIRouter, Depends, Query
 
-from app.api.deps import get_current_tenant_id
-from app.core.rbac import authorize_role
+from app.api.deps import get_clinic_id
+from app.core.rbac import require_role
+from app.models.user import UserRole
 
 router = APIRouter()
 
@@ -49,8 +50,15 @@ DRUG_CATALOG = [
 @router.get(
     "/icd10",
     dependencies=[
-        Depends(get_current_tenant_id),
-        Depends(authorize_role("admin", "provider", "nurse", "viewer")),
+        Depends(get_clinic_id),
+        Depends(require_role(
+            UserRole.ADMIN,
+            UserRole.DOCTOR,
+            UserRole.CONSULTANT,
+            UserRole.NURSE,
+            UserRole.RECEPTIONIST,
+            UserRole.BILLING,
+        )),
     ],
 )
 async def search_icd10(q: str = Query(..., min_length=1)) -> list[dict[str, str]]:
@@ -65,8 +73,15 @@ async def search_icd10(q: str = Query(..., min_length=1)) -> list[dict[str, str]
 @router.get(
     "/drugs",
     dependencies=[
-        Depends(get_current_tenant_id),
-        Depends(authorize_role("admin", "provider", "nurse", "viewer")),
+        Depends(get_clinic_id),
+        Depends(require_role(
+            UserRole.ADMIN,
+            UserRole.DOCTOR,
+            UserRole.CONSULTANT,
+            UserRole.NURSE,
+            UserRole.RECEPTIONIST,
+            UserRole.BILLING,
+        )),
     ],
 )
 async def search_drugs(q: str = Query(..., min_length=1)) -> list[dict]:

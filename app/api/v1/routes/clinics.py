@@ -4,9 +4,10 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.api.deps import get_current_tenant_id, get_current_user_id
+from app.api.deps import get_clinic_id, get_user_id
 from app.core.database import get_db
-from app.core.rbac import authorize_role
+from app.core.rbac import require_role
+from app.models.user import UserRole
 from app.models.clinic import Clinic
 from app.schemas.clinic import ClinicAISettingsResponse, ClinicAISettingsUpdate
 
@@ -15,8 +16,8 @@ router = APIRouter()
 
 @router.get("/me")
 async def clinic_context(
-    clinic_id: str = Depends(get_current_tenant_id),
-    user_id: str = Depends(get_current_user_id),
+    clinic_id: str = Depends(get_clinic_id),
+    user_id: str = Depends(get_user_id),
 ) -> dict:
     return {"clinic_id": clinic_id, "user_id": user_id}
 
@@ -34,11 +35,18 @@ def _parse_clinic_uuid(clinic_id: str) -> uuid.UUID:
 @router.get(
     "/me/ai-settings",
     response_model=ClinicAISettingsResponse,
-    dependencies=[Depends(authorize_role("admin", "provider", "nurse", "viewer"))],
+    dependencies=[Depends(require_role(
+        UserRole.ADMIN,
+        UserRole.DOCTOR,
+        UserRole.CONSULTANT,
+        UserRole.NURSE,
+        UserRole.RECEPTIONIST,
+        UserRole.BILLING,
+    ))],
     summary="Get AI feature settings for the current clinic",
 )
 async def get_ai_settings(
-    clinic_id: str = Depends(get_current_tenant_id),
+    clinic_id: str = Depends(get_clinic_id),
     db: AsyncSession = Depends(get_db),
 ) -> ClinicAISettingsResponse:
     clinic_uuid = _parse_clinic_uuid(clinic_id)
@@ -62,12 +70,12 @@ async def get_ai_settings(
 @router.patch(
     "/me/ai-settings",
     response_model=ClinicAISettingsResponse,
-    dependencies=[Depends(authorize_role("admin"))],
+    dependencies=[Depends(require_role(UserRole.ADMIN))],
     summary="Update AI feature settings for the current clinic (admin only)",
 )
 async def update_ai_settings(
     payload: ClinicAISettingsUpdate,
-    clinic_id: str = Depends(get_current_tenant_id),
+    clinic_id: str = Depends(get_clinic_id),
     db: AsyncSession = Depends(get_db),
 ) -> ClinicAISettingsResponse:
     clinic_uuid = _parse_clinic_uuid(clinic_id)
