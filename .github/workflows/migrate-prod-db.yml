@@ -1,0 +1,32 @@
+name: Migrate Prod DB (Alembic)
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - "alembic/**"
+      - "alembic.ini"
+      - "app/**/models/**"
+      - "app/**/models*.py"
+  workflow_dispatch:
+
+jobs:
+  migrate_prod:
+    name: Run alembic upgrade head (prod)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Install backend dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+      - name: Run migrations on prod database
+        env:
+          DATABASE_URL: ${{ secrets.PROD_DATABASE_URL }}
+        run: alembic upgrade head
